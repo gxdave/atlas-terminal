@@ -41,6 +41,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Symbol Mapping for yfinance - try multiple variations
+SYMBOL_ALIASES = {
+    "EURUSD=X": ["EURUSD=X", "EUR=X"],
+    "GBPUSD=X": ["GBPUSD=X", "GBP=X"],
+    "USDJPY=X": ["USDJPY=X", "JPY=X"],
+    "AUDUSD=X": ["AUDUSD=X", "AUD=X"],
+    "USDCHF=X": ["USDCHF=X", "CHF=X"]
+}
+
 # Assets Configuration
 ASSETS = {
     "FX-Paare": {
@@ -110,20 +119,30 @@ class ProbabilityAnalyzer:
         """Load historical OHLC data from yfinance"""
         try:
             logger.info(f"Loading data for {symbol} with timeframe {timeframe}")
-            ticker = yf.Ticker(symbol)
 
-            # Try with multiple settings for better data retrieval
-            data = ticker.history(
-                period=period,
-                interval=timeframe,
-                auto_adjust=True,
-                prepost=False,
-                actions=False
-            )
+            # Try different symbol variations if available
+            symbols_to_try = SYMBOL_ALIASES.get(symbol, [symbol])
+            data = pd.DataFrame()
 
-            if data.empty:
-                logger.warning(f"First attempt failed for {symbol}, trying alternative method")
+            for try_symbol in symbols_to_try:
+                logger.info(f"Trying symbol: {try_symbol}")
+                ticker = yf.Ticker(try_symbol)
+
+                # Try with multiple settings for better data retrieval
+                data = ticker.history(
+                    period=period,
+                    interval=timeframe,
+                    auto_adjust=True,
+                    prepost=False,
+                    actions=False
+                )
+
+                if not data.empty:
+                    logger.info(f"Success with symbol: {try_symbol}")
+                    break
+
                 # Fallback: Try without auto_adjust
+                logger.warning(f"First method failed for {try_symbol}, trying alternative")
                 data = ticker.history(
                     period=period,
                     interval=timeframe,
@@ -131,8 +150,12 @@ class ProbabilityAnalyzer:
                     prepost=False
                 )
 
+                if not data.empty:
+                    logger.info(f"Success with alternative method for: {try_symbol}")
+                    break
+
             if data.empty:
-                raise ValueError(f"No data available for symbol {symbol}. Please check the symbol name.")
+                raise ValueError(f"No data available for symbol {symbol}. Tried variations: {', '.join(symbols_to_try)}. Try using CSV upload instead.")
 
             # Round to appropriate decimal places
             decimal_places = 5 if any(fx in symbol for fx in ['=X', 'USD', 'EUR', 'GBP', 'JPY']) else 2
