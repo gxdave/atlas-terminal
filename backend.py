@@ -332,12 +332,12 @@ async def get_financial_news():
         import requests
 
         # ========================================
-        # FÜGE HIER DEINEN NEWSAPI.ORG API KEY EIN
+        # NEWS API KEY - Wird aus Environment Variable gelesen
         # ========================================
-        NEWS_API_KEY = "7fdd1257f93642988bca6e4d3931ffa1"  # <-- Ersetze dies mit deinem API Key von newsapi.org
+        NEWS_API_KEY = os.environ.get("NEWS_API_KEY", "")  # Liest aus Railway Environment Variable
 
         # Versuche echte News von NewsAPI zu laden
-        if NEWS_API_KEY != "DEIN_API_KEY_HIER":
+        if NEWS_API_KEY and NEWS_API_KEY != "":
             try:
                 url = "https://newsapi.org/v2/top-headlines"
                 params = {
