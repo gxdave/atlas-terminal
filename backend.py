@@ -3,11 +3,12 @@ Atlas Terminal Backend - FastAPI Integration
 Integriert den Probability Analyzer für das Atlas Terminal
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+import io
 from typing import List, Dict, Optional, Any
 import pandas as pd
 import numpy as np
@@ -111,10 +112,27 @@ class ProbabilityAnalyzer:
             logger.info(f"Loading data for {symbol} with timeframe {timeframe}")
             ticker = yf.Ticker(symbol)
 
-            data = ticker.history(period=period, interval=timeframe)
+            # Try with multiple settings for better data retrieval
+            data = ticker.history(
+                period=period,
+                interval=timeframe,
+                auto_adjust=True,
+                prepost=False,
+                actions=False
+            )
 
             if data.empty:
-                raise ValueError(f"No data available for symbol {symbol}")
+                logger.warning(f"First attempt failed for {symbol}, trying alternative method")
+                # Fallback: Try without auto_adjust
+                data = ticker.history(
+                    period=period,
+                    interval=timeframe,
+                    auto_adjust=False,
+                    prepost=False
+                )
+
+            if data.empty:
+                raise ValueError(f"No data available for symbol {symbol}. Please check the symbol name.")
 
             # Round to appropriate decimal places
             decimal_places = 5 if any(fx in symbol for fx in ['=X', 'USD', 'EUR', 'GBP', 'JPY']) else 2
@@ -298,6 +316,137 @@ async def analyze_pattern(request: PatternRequest):
     except Exception as e:
         logger.error(f"Error in analysis: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Analyse fehlgeschlagen: {str(e)}")
+
+@app.post("/api/upload-csv")
+async def upload_csv_data(file: UploadFile = File(...)):
+    """Upload CSV file with OHLC data for custom analysis"""
+    global analyzer_instance
+
+    try:
+        # Validate file type
+        if not file.filename.endswith('.csv'):
+            raise HTTPException(status_code=400, detail="Only CSV files are allowed")
+
+        # Read file content
+        content = await file.read()
+        csv_buffer = io.BytesIO(content)
+
+        # Load CSV into analyzer
+        analyzer_instance = ProbabilityAnalyzer()
+
+        # Read CSV with pandas
+        data = pd.read_csv(csv_buffer)
+
+        # Validate required columns
+        required_columns = ['Date', 'Open', 'High', 'Low', 'Close']
+        missing_columns = [col for col in required_columns if col not in data.columns]
+
+        if missing_columns:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Missing required columns: {', '.join(missing_columns)}. Required: Date, Open, High, Low, Close"
+            )
+
+        # Process data
+        data['Date'] = pd.to_datetime(data['Date'])
+        data.set_index('Date', inplace=True)
+        data.sort_index(inplace=True)
+
+        # Convert to numeric
+        for col in ['Open', 'High', 'Low', 'Close']:
+            data[col] = pd.to_numeric(data[col], errors='coerce')
+
+        data.dropna(inplace=True)
+
+        if data.empty:
+            raise HTTPException(status_code=400, detail="No valid data in CSV file")
+
+        # Calculate candle types
+        decimal_places = 5 if data['Close'].median() < 10 else 2
+        data['Open'] = data['Open'].round(decimal_places)
+        data['High'] = data['High'].round(decimal_places)
+        data['Low'] = data['Low'].round(decimal_places)
+        data['Close'] = data['Close'].round(decimal_places)
+
+        data['Price_Change'] = (data['Close'] - data['Open']).round(decimal_places)
+        data['Candle_Type'] = np.where(
+            data['Price_Change'] > 0, 'Bullish',
+            np.where(data['Price_Change'] < 0, 'Bearish', 'Doji')
+        )
+
+        # Store in analyzer
+        analyzer_instance.data = data
+        analyzer_instance.symbol = f"Custom: {file.filename}"
+        analyzer_instance.timeframe = "Custom"
+
+        logger.info(f"CSV uploaded: {file.filename}, {len(data)} candles")
+
+        return {
+            "message": "CSV uploaded successfully",
+            "filename": file.filename,
+            "total_candles": len(data),
+            "date_range": {
+                "start": data.index[0].strftime('%Y-%m-%d'),
+                "end": data.index[-1].strftime('%Y-%m-%d')
+            },
+            "candle_types": {
+                "bullish": int(sum(data['Candle_Type'] == 'Bullish')),
+                "bearish": int(sum(data['Candle_Type'] == 'Bearish')),
+                "doji": int(sum(data['Candle_Type'] == 'Doji'))
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading CSV: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing CSV: {str(e)}")
+
+@app.post("/api/analyze-csv")
+async def analyze_csv_pattern(pattern: List[str]):
+    """Analyze pattern using uploaded CSV data"""
+    global analyzer_instance
+
+    try:
+        if analyzer_instance is None or analyzer_instance.data is None:
+            raise HTTPException(
+                status_code=400,
+                detail="No CSV data loaded. Please upload a CSV file first."
+            )
+
+        # Calculate probabilities
+        results = analyzer_instance.calculate_probabilities(pattern)
+
+        response = {
+            'total_matches': results['total_matches'],
+            'next_bullish': results['next_bullish'],
+            'next_bearish': results['next_bearish'],
+            'bullish_probability': round(results['bullish_probability'], 2),
+            'bearish_probability': round(results['bearish_probability'], 2),
+            'symbol': analyzer_instance.symbol,
+            'timeframe': analyzer_instance.timeframe,
+            'pattern': pattern,
+            'data_info': {
+                'total_candles': len(analyzer_instance.data),
+                'date_range': {
+                    'start': analyzer_instance.data.index[0].strftime('%Y-%m-%d'),
+                    'end': analyzer_instance.data.index[-1].strftime('%Y-%m-%d')
+                },
+                'candle_types': {
+                    'bullish': int(sum(analyzer_instance.data['Candle_Type'] == 'Bullish')),
+                    'bearish': int(sum(analyzer_instance.data['Candle_Type'] == 'Bearish')),
+                    'doji': int(sum(analyzer_instance.data['Candle_Type'] == 'Doji'))
+                }
+            }
+        }
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error analyzing CSV data: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 @app.get("/api/market-data/{symbol}")
 async def get_market_data(symbol: str):
