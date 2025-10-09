@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATLAS TERMINAL</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Consolas', 'Courier New', monospace;
+            background: #000000;
+            color: #f7931a;
+            overflow-x: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .landing-container {
+            text-align: center;
+            padding: 50px;
+            max-width: 800px;
+        }
+
+        h1 {
+            font-size: 4rem;
+            color: #f7931a;
+            text-shadow: 0 0 20px #f7931a;
+            letter-spacing: 5px;
+            margin-bottom: 20px;
+            animation: glow 2s ease-in-out infinite;
+        }
+
+        @keyframes glow {
+            0%, 100% { text-shadow: 0 0 20px #f7931a; }
+            50% { text-shadow: 0 0 40px #f7931a, 0 0 60px #f7931a; }
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            color: #888;
+            margin-bottom: 40px;
+            letter-spacing: 2px;
+        }
+
+        .description {
+            color: #aaa;
+            line-height: 1.8;
+            margin-bottom: 40px;
+            font-size: 1rem;
+        }
+
+        .btn-launch {
+            background: #f7931a;
+            color: #000;
+            border: 2px solid #f7931a;
+            padding: 20px 50px;
+            font-family: 'Consolas', monospace;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+            margin: 10px;
+        }
+
+        .btn-launch:hover {
+            background: transparent;
+            color: #f7931a;
+            box-shadow: 0 0 30px rgba(247, 147, 26, 0.6);
+            transform: translateY(-2px);
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 60px;
+        }
+
+        .feature {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-left: 3px solid #f7931a;
+            padding: 20px;
+            text-align: left;
+        }
+
+        .feature-title {
+            color: #f7931a;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .feature-desc {
+            color: #888;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .status {
+            margin-top: 30px;
+            padding: 15px;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            display: inline-block;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #00ff00;
+            margin-right: 10px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="landing-container">
+        <h1>ATLAS TERMINAL</h1>
+        <div class="subtitle">Professional Financial Analysis Platform</div>
+
+        <div class="description">
+            A Bloomberg-style terminal for probability analysis, market data,
+            and financial news. Built with FastAPI and modern web technologies.
+        </div>
+
+        <a href="./terminal.html" class="btn-launch">Launch Terminal</a>
+        <a href="/docs" class="btn-launch" style="background: transparent; color: #f7931a;">API Docs</a>
+
+        <div class="features">
+            <div class="feature">
+                <div class="feature-title">Probability Analyzer</div>
+                <div class="feature-desc">Analyze candlestick patterns with historical data</div>
+            </div>
+            <div class="feature">
+                <div class="feature-title">Live Markets</div>
+                <div class="feature-desc">TradingView charts for forex, stocks, and crypto</div>
+            </div>
+            <div class="feature">
+                <div class="feature-title">Financial News</div>
+                <div class="feature-desc">Real-time business news from top sources</div>
+            </div>
+            <div class="feature">
+                <div class="feature-title">Bloomberg Style</div>
+                <div class="feature-desc">Professional dark theme terminal interface</div>
+            </div>
+        </div>
+
+        <div class="status">
+            <span class="status-dot"></span>
+            <span style="color: #888;">SYSTEM OPERATIONAL</span>
+        </div>
+    </div>
+</body>
+</html>

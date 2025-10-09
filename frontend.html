@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atlas Terminal v1.1.1</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #fff;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            opacity: 0.8;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .card h2 {
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        select, input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 1rem;
+        }
+
+        .pattern-builder {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .pattern-candle {
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .pattern-visual {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            justify-content: center;
+        }
+
+        .candle-icon {
+            font-size: 2rem;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-small {
+            padding: 10px 20px;
+            font-size: 0.9rem;
+            width: auto;
+        }
+
+        .results {
+            display: none;
+        }
+
+        .results.active {
+            display: block;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .bullish {
+            color: #4ade80;
+        }
+
+        .bearish {
+            color: #f87171;
+        }
+
+        .progress-bar {
+            height: 40px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 20px;
+            overflow: hidden;
+            position: relative;
+            margin: 20px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 15px;
+            font-weight: bold;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: rgba(248, 113, 113, 0.2);
+            border: 1px solid #f87171;
+            color: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .success {
+            background: rgba(74, 222, 128, 0.2);
+            border: 1px solid #4ade80;
+            color: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .info-box {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid #3b82f6;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚡ Atlas Terminal</h1>
+            <p class="subtitle">Candlestick Pattern Probability Analyzer v1.1.1</p>
+        </header>
+
+        <!-- Asset Selection Card -->
+        <div class="card">
+            <h2>📊 Asset Auswahl</h2>
+
+            <div class="form-group">
+                <label for="category">Kategorie:</label>
+                <select id="category">
+                    <option value="">Lade Kategorien...</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="symbol">Asset:</label>
+                <select id="symbol">
+                    <option value="">Bitte Kategorie wählen</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="timeframe">Timeframe:</label>
+                <select id="timeframe">
+                    <option value="1d">Daily</option>
+                    <option value="1wk">Weekly</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Pattern Builder Card -->
+        <div class="card">
+            <h2>🎯 Pattern Builder</h2>
+
+            <div class="button-group">
+                <button class="btn btn-small" onclick="addCandle()">➕ Candle hinzufügen</button>
+                <button class="btn btn-small" onclick="removeCandle()">➖ Candle entfernen</button>
+            </div>
+
+            <div id="patternBuilder" class="pattern-builder"></div>
+
+            <div class="pattern-visual" id="patternVisual"></div>
+
+            <button class="btn" onclick="analyzePattern()" id="analyzeBtn">
+                🚀 Pattern Analysieren
+            </button>
+        </div>
+
+        <!-- Results Card -->
+        <div class="card results" id="resultsCard">
+            <h2>📈 Analyse Ergebnisse</h2>
+
+            <div id="loadingIndicator" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Analysiere Pattern...</p>
+            </div>
+
+            <div id="resultsContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:8000';
+        let currentPattern = ['Bullish', 'Bearish'];
+        let assets = {};
+
+        // Initialize on page load
+        window.onload = async () => {
+            await loadAssets();
+            await loadTimeframes();
+            renderPatternBuilder();
+            updatePatternVisual();
+        };
+
+        // Load available assets
+        async function loadAssets() {
+            try {
+                const response = await fetch(`${API_URL}/api/assets`);
+                assets = await response.json();
+
+                const categorySelect = document.getElementById('category');
+                categorySelect.innerHTML = '<option value="">Wähle Kategorie...</option>';
+
+                Object.keys(assets).forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    categorySelect.appendChild(option);
+                });
+
+                categorySelect.onchange = updateAssetList;
+            } catch (error) {
+                console.error('Error loading assets:', error);
+                showError('Fehler beim Laden der Assets');
+            }
+        }
+
+        // Update asset list based on category
+        function updateAssetList() {
+            const category = document.getElementById('category').value;
+            const symbolSelect = document.getElementById('symbol');
+
+            if (!category) {
+                symbolSelect.innerHTML = '<option value="">Bitte Kategorie wählen</option>';
+                return;
+            }
+
+            symbolSelect.innerHTML = '<option value="">Wähle Asset...</option>';
+
+            Object.entries(assets[category]).forEach(([symbol, name]) => {
+                const option = document.createElement('option');
+                option.value = symbol;
+                option.textContent = `${name} (${symbol})`;
+                symbolSelect.appendChild(option);
+            });
+        }
+
+        // Load timeframes
+        async function loadTimeframes() {
+            try {
+                const response = await fetch(`${API_URL}/api/timeframes`);
+                const timeframes = await response.json();
+                console.log('Timeframes loaded:', timeframes);
+            } catch (error) {
+                console.error('Error loading timeframes:', error);
+            }
+        }
+
+        // Render pattern builder
+        function renderPatternBuilder() {
+            const builder = document.getElementById('patternBuilder');
+            builder.innerHTML = '';
+
+            currentPattern.forEach((candle, index) => {
+                const div = document.createElement('div');
+                div.className = 'pattern-candle';
+
+                const label = document.createElement('label');
+                label.textContent = `Candle ${index + 1}:`;
+
+                const select = document.createElement('select');
+                select.onchange = (e) => updateCandle(index, e.target.value);
+
+                ['Bullish', 'Bearish'].forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type;
+                    option.textContent = type;
+                    option.selected = type === candle;
+                    select.appendChild(option);
+                });
+
+                div.appendChild(label);
+                div.appendChild(select);
+                builder.appendChild(div);
+            });
+        }
+
+        // Update pattern visual
+        function updatePatternVisual() {
+            const visual = document.getElementById('patternVisual');
+            visual.innerHTML = currentPattern.map(candle => {
+                const icon = candle === 'Bullish' ? '🟢' : '🔴';
+                return `<span class="candle-icon" title="${candle}">${icon}</span>`;
+            }).join('<span style="opacity: 0.5;">→</span>');
+        }
+
+        // Add candle to pattern
+        function addCandle() {
+            currentPattern.push('Bullish');
+            renderPatternBuilder();
+            updatePatternVisual();
+        }
+
+        // Remove candle from pattern
+        function removeCandle() {
+            if (currentPattern.length > 1) {
+                currentPattern.pop();
+                renderPatternBuilder();
+                updatePatternVisual();
+            }
+        }
+
+        // Update specific candle
+        function updateCandle(index, value) {
+            currentPattern[index] = value;
+            updatePatternVisual();
+        }
+
+        // Analyze pattern
+        async function analyzePattern() {
+            const symbol = document.getElementById('symbol').value;
+            const timeframe = document.getElementById('timeframe').value;
+
+            if (!symbol) {
+                showError('Bitte wähle ein Asset aus!');
+                return;
+            }
+
+            const resultsCard = document.getElementById('resultsCard');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const resultsContent = document.getElementById('resultsContent');
+            const analyzeBtn = document.getElementById('analyzeBtn');
+
+            // Show loading
+            resultsCard.classList.add('active');
+            loadingIndicator.style.display = 'block';
+            resultsContent.innerHTML = '';
+            analyzeBtn.disabled = true;
+
+            try {
+                const response = await fetch(`${API_URL}/api/analyze`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        pattern: currentPattern,
+                        symbol: symbol,
+                        timeframe: timeframe,
+                        period: '5y'
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Analyse fehlgeschlagen');
+                }
+
+                const data = await response.json();
+                displayResults(data);
+
+            } catch (error) {
+                console.error('Error:', error);
+                resultsContent.innerHTML = `<div class="error">❌ ${error.message}</div>`;
+            } finally {
+                loadingIndicator.style.display = 'none';
+                analyzeBtn.disabled = false;
+            }
+        }
+
+        // Display results
+        function displayResults(data) {
+            const resultsContent = document.getElementById('resultsContent');
+
+            if (data.total_matches === 0) {
+                resultsContent.innerHTML = `
+                    <div class="info-box">
+                        ℹ️ Keine Matches für dieses Pattern gefunden. Versuche ein anderes Pattern oder Asset.
+                    </div>
+                `;
+                return;
+            }
+
+            const bullishProb = data.bullish_probability;
+            const bearishProb = data.bearish_probability;
+
+            resultsContent.innerHTML = `
+                <div class="success">
+                    ✅ Analyse erfolgreich abgeschlossen!
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Pattern Matches</div>
+                        <div class="stat-value">${data.total_matches}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Bullish Folge</div>
+                        <div class="stat-value bullish">${data.next_bullish}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Bearish Folge</div>
+                        <div class="stat-value bearish">${data.next_bearish}</div>
+                    </div>
+                </div>
+
+                <h3 style="margin: 20px 0 10px 0;">Wahrscheinlichkeiten:</h3>
+
+                <div>
+                    <div style="margin-bottom: 10px;">
+                        <strong class="bullish">🟢 Bullish: ${bullishProb.toFixed(2)}%</strong>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${bullishProb}%">
+                            ${bullishProb.toFixed(1)}%
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <div style="margin-bottom: 10px;">
+                        <strong class="bearish">🔴 Bearish: ${bearishProb.toFixed(2)}%</strong>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${bearishProb}%; background: linear-gradient(90deg, #f87171 0%, #dc2626 100%)">
+                            ${bearishProb.toFixed(1)}%
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-box">
+                    <strong>📊 Daten Info:</strong><br>
+                    Symbol: ${data.symbol}<br>
+                    Timeframe: ${data.timeframe}<br>
+                    Kerzen: ${data.data_info.total_candles}<br>
+                    Zeitraum: ${data.data_info.date_range.start} bis ${data.data_info.date_range.end}
+                </div>
+            `;
+        }
+
+        // Show error message
+        function showError(message) {
+            const resultsCard = document.getElementById('resultsCard');
+            const resultsContent = document.getElementById('resultsContent');
+
+            resultsCard.classList.add('active');
+            resultsContent.innerHTML = `<div class="error">❌ ${message}</div>`;
+        }
+    </script>
+</body>
+</html>
