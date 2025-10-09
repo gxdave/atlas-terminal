@@ -5,7 +5,8 @@ Integriert den Probability Analyzer für das Atlas Terminal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Any
 import pandas as pd
@@ -445,6 +446,22 @@ async def health_check():
         "status": "healthy",
         "timestamp": datetime.now().isoformat()
     }
+
+# Serve static HTML files
+@app.get("/")
+async def read_root():
+    """Serve landing page"""
+    return FileResponse("index.html")
+
+@app.get("/terminal.html")
+async def read_terminal():
+    """Serve terminal interface"""
+    return FileResponse("terminal.html")
+
+@app.get("/index.html")
+async def read_index():
+    """Serve index page"""
+    return FileResponse("index.html")
 
 if __name__ == "__main__":
     import uvicorn
