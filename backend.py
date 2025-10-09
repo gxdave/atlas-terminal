@@ -125,37 +125,49 @@ class ProbabilityAnalyzer:
             data = pd.DataFrame()
 
             for try_symbol in symbols_to_try:
-                logger.info(f"Trying symbol: {try_symbol}")
-                ticker = yf.Ticker(try_symbol)
+                logger.info(f"Attempting to load: {try_symbol}")
+                try:
+                    ticker = yf.Ticker(try_symbol)
 
-                # Try with multiple settings for better data retrieval
-                data = ticker.history(
-                    period=period,
-                    interval=timeframe,
-                    auto_adjust=True,
-                    prepost=False,
-                    actions=False
-                )
+                    # Method 1: With auto_adjust
+                    logger.info(f"Method 1: period={period}, interval={timeframe}, auto_adjust=True")
+                    data = ticker.history(
+                        period=period,
+                        interval=timeframe,
+                        auto_adjust=True,
+                        prepost=False,
+                        actions=False
+                    )
+                    logger.info(f"Method 1 result: {len(data)} rows, empty={data.empty}")
 
-                if not data.empty:
-                    logger.info(f"Success with symbol: {try_symbol}")
-                    break
+                    if not data.empty:
+                        logger.info(f"✓ SUCCESS with {try_symbol} (Method 1)")
+                        logger.info(f"Date range: {data.index[0]} to {data.index[-1]}")
+                        break
 
-                # Fallback: Try without auto_adjust
-                logger.warning(f"First method failed for {try_symbol}, trying alternative")
-                data = ticker.history(
-                    period=period,
-                    interval=timeframe,
-                    auto_adjust=False,
-                    prepost=False
-                )
+                    # Method 2: Without auto_adjust
+                    logger.info(f"Method 2: Trying without auto_adjust")
+                    data = ticker.history(
+                        period=period,
+                        interval=timeframe,
+                        auto_adjust=False,
+                        prepost=False
+                    )
+                    logger.info(f"Method 2 result: {len(data)} rows, empty={data.empty}")
 
-                if not data.empty:
-                    logger.info(f"Success with alternative method for: {try_symbol}")
-                    break
+                    if not data.empty:
+                        logger.info(f"✓ SUCCESS with {try_symbol} (Method 2)")
+                        logger.info(f"Date range: {data.index[0]} to {data.index[-1]}")
+                        break
+
+                except Exception as e:
+                    logger.error(f"✗ Exception for {try_symbol}: {str(e)}")
+                    continue
 
             if data.empty:
-                raise ValueError(f"No data available for symbol {symbol}. Tried variations: {', '.join(symbols_to_try)}. Try using CSV upload instead.")
+                error_msg = f"No data for {symbol}. Tried: {', '.join(symbols_to_try)}"
+                logger.error(f"✗ FAILED: {error_msg}")
+                raise ValueError(error_msg)
 
             # Round to appropriate decimal places
             decimal_places = 5 if any(fx in symbol for fx in ['=X', 'USD', 'EUR', 'GBP', 'JPY']) else 2
