@@ -120,6 +120,14 @@ class ProbabilityAnalyzer:
         try:
             logger.info(f"Loading data for {symbol} with timeframe {timeframe}")
 
+            # Set user agent to avoid Yahoo Finance blocking (Railway fix)
+            import requests
+            session = requests.Session()
+            session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            })
+            logger.info("Using custom user agent for Railway compatibility")
+
             # Try different symbol variations if available
             symbols_to_try = SYMBOL_ALIASES.get(symbol, [symbol])
             data = pd.DataFrame()
@@ -127,7 +135,7 @@ class ProbabilityAnalyzer:
             for try_symbol in symbols_to_try:
                 logger.info(f"Attempting to load: {try_symbol}")
                 try:
-                    ticker = yf.Ticker(try_symbol)
+                    ticker = yf.Ticker(try_symbol, session=session)
 
                     # Method 1: With auto_adjust
                     logger.info(f"Method 1: period={period}, interval={timeframe}, auto_adjust=True")
