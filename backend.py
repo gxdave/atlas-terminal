@@ -120,19 +120,17 @@ class ProbabilityAnalyzer:
         try:
             import requests
 
-            # Convert yfinance symbols to API-friendly format
-            api_symbol = symbol.replace('=X', '').replace('^', '')
-
-            # Try different free APIs
+            # Try different free APIs (pass original symbol, each method handles conversion)
             sources = [
+                self._try_alphavantage,  # Most reliable free API
                 self._try_twelvedata,
-                self._try_polygon_free,
+                self._try_yahoo_csv,  # Sometimes works when Ticker fails
             ]
 
             for source_func in sources:
                 try:
                     logger.info(f"Trying alternative source: {source_func.__name__}")
-                    data = source_func(api_symbol, timeframe, period)
+                    data = source_func(symbol, timeframe, period)
                     if not data.empty:
                         logger.info(f"✓ SUCCESS with {source_func.__name__}")
                         return data
@@ -157,20 +155,34 @@ class ProbabilityAnalyzer:
         interval_map = {'1d': '1day', '1wk': '1week', '1mo': '1month'}
         interval = interval_map.get(timeframe, '1day')
 
+        # Convert symbol format for Twelve Data
+        # EURUSD=X -> EUR/USD
+        api_symbol = symbol
+        if '=' in symbol:
+            base_symbol = symbol.replace('=X', '').replace('^', '')
+            if len(base_symbol) == 6:  # Forex pair like EURUSD
+                api_symbol = f"{base_symbol[:3]}/{base_symbol[3:]}"
+                logger.info(f"Converted {symbol} to Twelve Data format: {api_symbol}")
+
         params = {
-            'symbol': symbol,
+            'symbol': api_symbol,
             'interval': interval,
             'outputsize': 5000,
             'format': 'JSON'
         }
 
+        logger.info(f"Twelve Data request: {url} with params: {params}")
         response = requests.get(url, params=params, timeout=10)
+        logger.info(f"Twelve Data response status: {response.status_code}")
 
         if response.status_code == 200:
             json_data = response.json()
+            logger.info(f"Twelve Data JSON keys: {json_data.keys()}")
 
             if 'values' in json_data:
                 df = pd.DataFrame(json_data['values'])
+                logger.info(f"Twelve Data: Loaded {len(df)} rows")
+
                 df['datetime'] = pd.to_datetime(df['datetime'])
                 df.set_index('datetime', inplace=True)
                 df = df.sort_index()
@@ -190,14 +202,136 @@ class ProbabilityAnalyzer:
 
                 df.dropna(inplace=True)
                 return df
+            else:
+                logger.error(f"Twelve Data error: {json_data.get('message', 'Unknown error')}")
 
         return pd.DataFrame()
 
-    def _try_polygon_free(self, symbol: str, timeframe: str, period: str) -> pd.DataFrame:
-        """Try Polygon.io free tier"""
-        # Note: Requires API key, but provides free tier
-        # This is a placeholder for future implementation
-        return pd.DataFrame()
+    def _try_yahoo_csv(self, symbol: str, timeframe: str, period: str) -> pd.DataFrame:
+        """Try Yahoo Finance with yfinance_cache workaround"""
+        try:
+            # Use yfinance download function directly (sometimes works when Ticker fails)
+            import yfinance as yf
+            from datetime import datetime, timedelta
+
+            # Calculate dates
+            end_date = datetime.now()
+            period_map = {'1y': 365, '2y': 730, '5y': 1825, '10y': 3650}
+            days = period_map.get(period, 1825)
+            start_date = end_date - timedelta(days=days)
+
+            logger.info(f"Yahoo download(): Trying {symbol}")
+
+            # Use yfinance.download instead of Ticker (sometimes works better)
+            data = yf.download(
+                symbol,
+                start=start_date,
+                end=end_date,
+                interval=timeframe,
+                progress=False,
+                auto_adjust=True
+            )
+
+            if not data.empty:
+                logger.info(f"Yahoo download(): SUCCESS - {len(data)} rows")
+                return data
+            else:
+                logger.warning("Yahoo download(): No data returned")
+                return pd.DataFrame()
+
+        except Exception as e:
+            logger.error(f"Yahoo download() failed: {e}")
+            return pd.DataFrame()
+
+    def _try_alphavantage(self, symbol: str, timeframe: str, period: str) -> pd.DataFrame:
+        """Try Alpha Vantage (free tier: 25 requests/day, no credit card needed)"""
+        import requests
+
+        try:
+            # Get API key from environment or use demo key
+            api_key = os.environ.get("ALPHAVANTAGE_API_KEY", "demo")
+
+            # Convert symbol format
+            api_symbol = symbol.replace('=X', '').replace('^', '')
+
+            # Map function based on timeframe
+            function_map = {
+                '1d': 'TIME_SERIES_DAILY',
+                '1wk': 'TIME_SERIES_WEEKLY',
+                '1mo': 'TIME_SERIES_MONTHLY'
+            }
+            function = function_map.get(timeframe, 'TIME_SERIES_DAILY')
+
+            # For Forex pairs
+            if len(api_symbol) == 6:  # EURUSD
+                from_currency = api_symbol[:3]
+                to_currency = api_symbol[3:]
+                function = 'FX_DAILY' if timeframe == '1d' else 'FX_WEEKLY' if timeframe == '1wk' else 'FX_MONTHLY'
+
+                url = "https://www.alphavantage.co/query"
+                params = {
+                    'function': function,
+                    'from_symbol': from_currency,
+                    'to_symbol': to_currency,
+                    'apikey': api_key,
+                    'outputsize': 'full'
+                }
+            else:
+                url = "https://www.alphavantage.co/query"
+                params = {
+                    'function': function,
+                    'symbol': api_symbol,
+                    'apikey': api_key,
+                    'outputsize': 'full'
+                }
+
+            logger.info(f"Alpha Vantage: Trying {api_symbol} with function {function}")
+            response = requests.get(url, params=params, timeout=15)
+
+            if response.status_code == 200:
+                json_data = response.json()
+
+                # Find the time series key
+                ts_key = None
+                for key in json_data.keys():
+                    if 'Time Series' in key:
+                        ts_key = key
+                        break
+
+                if ts_key and ts_key in json_data:
+                    time_series = json_data[ts_key]
+                    df = pd.DataFrame.from_dict(time_series, orient='index')
+
+                    # Rename columns
+                    df.rename(columns={
+                        '1. open': 'Open',
+                        '2. high': 'High',
+                        '3. low': 'Low',
+                        '4. close': 'Close',
+                        '5. volume': 'Volume'
+                    }, inplace=True)
+
+                    df.index = pd.to_datetime(df.index)
+                    df = df.sort_index()
+
+                    # Convert to numeric
+                    for col in ['Open', 'High', 'Low', 'Close']:
+                        if col in df.columns:
+                            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+                    df.dropna(inplace=True)
+
+                    if not df.empty:
+                        logger.info(f"Alpha Vantage: SUCCESS - {len(df)} rows")
+                        return df
+
+                logger.error(f"Alpha Vantage error: {json_data.get('Note', json_data.get('Information', 'Unknown'))}")
+
+            return pd.DataFrame()
+
+        except Exception as e:
+            logger.error(f"Alpha Vantage failed: {e}")
+            return pd.DataFrame()
 
     def load_data(self, symbol: str, timeframe: str, period: str = "5y") -> pd.DataFrame:
         """Load historical OHLC data from yfinance"""

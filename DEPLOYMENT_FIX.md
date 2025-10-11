@@ -19,7 +19,9 @@ ERROR:yfinance:Failed to get ticker 'EURUSD=X' reason: Expecting value: line 1 c
 - Timeout von 10 Sekunden pro Request
 
 ### 3. **Alternative Datenquellen** ✅
-- **Twelve Data API** als Fallback (kostenlos, kein API-Key für Basis-Nutzung)
+- **Alpha Vantage API** - Primärer Fallback (100% kostenlos, 25 Requests/Tag)
+- **Twelve Data API** - Sekundärer Fallback
+- **Yahoo Finance Download** - Tertiärer Fallback
 - Automatischer Fallback wenn Yahoo Finance fehlschlägt
 
 ### 4. **Symbol-Aliase** ✅
@@ -27,23 +29,45 @@ ERROR:yfinance:Failed to get ticker 'EURUSD=X' reason: Expecting value: line 1 c
 
 ## Deployment auf Railway
 
-### Schritt 1: Code aktualisieren
-```bash
-git add backend.py
-git commit -m "Fix: Enhanced Yahoo Finance API compatibility for Railway"
-git push origin main
+### Schritt 1: Alpha Vantage API-Key erstellen (KOSTENLOS! ⚡)
+
+**WICHTIG:** Da Yahoo Finance Railway komplett blockiert, brauchst du einen Alpha Vantage API-Key:
+
+1. Gehe zu: **https://www.alphavantage.co/support/#api-key**
+2. Gib deine E-Mail ein
+3. Klicke **"GET FREE API KEY"**
+4. Kopiere den API-Key (Format: `ABC123XYZ456`)
+
+**Kosten:** 100% KOSTENLOS, keine Kreditkarte nötig!
+**Limit:** 25 Requests/Tag (ausreichend für Testing)
+**Alternative:** Twelve Data bietet 800 Requests/Tag kostenlos
+
+### Schritt 2: Railway Environment Variables setzen
+
+1. Gehe zu deinem Railway Projekt Dashboard
+2. Klicke auf **"Variables"** Tab
+3. Füge hinzu:
+```
+ALPHAVANTAGE_API_KEY=dein_api_key_hier
 ```
 
-### Schritt 2: Railway Environment Variables (Optional)
-Falls du zusätzliche APIs nutzen möchtest:
+Optional (für News Feature):
 ```
 NEWS_API_KEY=your_newsapi_key_here
 ```
 
-### Schritt 3: Railway Redeploy
-Railway deployed automatisch bei jedem Push. Prüfe die Logs:
+### Schritt 3: Code aktualisieren und pushen
 ```bash
-railway logs
+cd "/Users/davidgauch/Library/CloudStorage/OneDrive-Persönlich/Desktop/Coding/Atlas Terminal/V1.1.1"
+git add backend.py DEPLOYMENT_FIX.md
+git commit -m "Fix: Add Alpha Vantage fallback for Railway deployment"
+git push origin main
+```
+
+### Schritt 4: Railway Redeploy überprüfen
+Railway deployed automatisch. Prüfe die Logs:
+```bash
+railway logs --tail
 ```
 
 ## Wenn das Problem weiterhin besteht
@@ -107,7 +131,7 @@ INFO:backend:Analysis complete: 42 matches found
 INFO:     100.64.0.6:41230 - "POST /api/analyze HTTP/1.1" 200 OK
 ```
 
-## Erwartete Log-Ausgabe (Fallback zu Alternative)
+## Erwartete Log-Ausgabe (Fallback zu Alpha Vantage)
 
 ```
 INFO:backend:Analyzing pattern ['Bullish', 'Bearish', 'Bullish'] for EURUSD=X
@@ -116,10 +140,16 @@ INFO:backend:Using enhanced headers for Railway compatibility
 INFO:backend:Attempting to load: EURUSD=X
 ERROR:yfinance:Failed to get ticker 'EURUSD=X' reason: Expecting value: line 1 column 1
 WARNING:backend:Yahoo Finance failed for EURUSD=X. Trying alternative source...
-INFO:backend:Trying alternative source: _try_twelvedata
-INFO:backend:✓ SUCCESS with _try_twelvedata
+INFO:backend:Trying alternative source: _try_alphavantage
+INFO:backend:Alpha Vantage: Trying EURUSD with function FX_DAILY
+INFO:backend:Alpha Vantage: SUCCESS - 1258 rows
+INFO:backend:✓ SUCCESS with _try_alphavantage
 INFO:backend:Successfully loaded 1258 candles
+INFO:backend:Analysis complete: 42 matches found
+INFO:     100.64.0.6:41230 - "POST /api/analyze HTTP/1.1" 200 OK
 ```
+
+**WICHTIG:** Wenn du den Alpha Vantage API-Key nicht setzt, wird "demo" verwendet, was nur für IBM funktioniert!
 
 ## Support
 
