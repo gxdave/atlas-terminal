@@ -115,67 +115,198 @@ class ProbabilityAnalyzer:
         self.symbol = None
         self.timeframe = None
 
+    def _try_alternative_source(self, symbol: str, timeframe: str, period: str) -> pd.DataFrame:
+        """Try alternative data sources as fallback"""
+        try:
+            import requests
+
+            # Convert yfinance symbols to API-friendly format
+            api_symbol = symbol.replace('=X', '').replace('^', '')
+
+            # Try different free APIs
+            sources = [
+                self._try_twelvedata,
+                self._try_polygon_free,
+            ]
+
+            for source_func in sources:
+                try:
+                    logger.info(f"Trying alternative source: {source_func.__name__}")
+                    data = source_func(api_symbol, timeframe, period)
+                    if not data.empty:
+                        logger.info(f"✓ SUCCESS with {source_func.__name__}")
+                        return data
+                except Exception as e:
+                    logger.error(f"Alternative source {source_func.__name__} failed: {e}")
+                    continue
+
+            return pd.DataFrame()
+
+        except Exception as e:
+            logger.error(f"All alternative sources failed: {e}")
+            return pd.DataFrame()
+
+    def _try_twelvedata(self, symbol: str, timeframe: str, period: str) -> pd.DataFrame:
+        """Try Twelve Data free tier (no API key needed for some endpoints)"""
+        import requests
+
+        # Twelve Data free endpoint
+        url = f"https://api.twelvedata.com/time_series"
+
+        # Map timeframe
+        interval_map = {'1d': '1day', '1wk': '1week', '1mo': '1month'}
+        interval = interval_map.get(timeframe, '1day')
+
+        params = {
+            'symbol': symbol,
+            'interval': interval,
+            'outputsize': 5000,
+            'format': 'JSON'
+        }
+
+        response = requests.get(url, params=params, timeout=10)
+
+        if response.status_code == 200:
+            json_data = response.json()
+
+            if 'values' in json_data:
+                df = pd.DataFrame(json_data['values'])
+                df['datetime'] = pd.to_datetime(df['datetime'])
+                df.set_index('datetime', inplace=True)
+                df = df.sort_index()
+
+                # Rename columns to match yfinance format
+                df.rename(columns={
+                    'open': 'Open',
+                    'high': 'High',
+                    'low': 'Low',
+                    'close': 'Close',
+                    'volume': 'Volume'
+                }, inplace=True)
+
+                # Convert to numeric
+                for col in ['Open', 'High', 'Low', 'Close']:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+
+                df.dropna(inplace=True)
+                return df
+
+        return pd.DataFrame()
+
+    def _try_polygon_free(self, symbol: str, timeframe: str, period: str) -> pd.DataFrame:
+        """Try Polygon.io free tier"""
+        # Note: Requires API key, but provides free tier
+        # This is a placeholder for future implementation
+        return pd.DataFrame()
+
     def load_data(self, symbol: str, timeframe: str, period: str = "5y") -> pd.DataFrame:
         """Load historical OHLC data from yfinance"""
         try:
             logger.info(f"Loading data for {symbol} with timeframe {timeframe}")
 
-            # Set user agent to avoid Yahoo Finance blocking (Railway fix)
+            # Enhanced headers to avoid Yahoo Finance blocking (Railway fix)
             import requests
+            import random
+
+            # Rotate User-Agents for better success rate
+            user_agents = [
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0'
+            ]
+
             session = requests.Session()
             session.headers.update({
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                'User-Agent': random.choice(user_agents),
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Cache-Control': 'max-age=0',
+                'DNT': '1'
             })
-            logger.info("Using custom user agent for Railway compatibility")
+            logger.info("Using enhanced headers for Railway compatibility")
 
             # Try different symbol variations if available
             symbols_to_try = SYMBOL_ALIASES.get(symbol, [symbol])
             data = pd.DataFrame()
 
+            # Retry configuration
+            max_retries = 3
+            retry_delay = 2  # seconds
+
             for try_symbol in symbols_to_try:
                 logger.info(f"Attempting to load: {try_symbol}")
-                try:
-                    ticker = yf.Ticker(try_symbol, session=session)
 
-                    # Method 1: With auto_adjust
-                    logger.info(f"Method 1: period={period}, interval={timeframe}, auto_adjust=True")
-                    data = ticker.history(
-                        period=period,
-                        interval=timeframe,
-                        auto_adjust=True,
-                        prepost=False,
-                        actions=False
-                    )
-                    logger.info(f"Method 1 result: {len(data)} rows, empty={data.empty}")
+                for retry in range(max_retries):
+                    try:
+                        if retry > 0:
+                            import time
+                            logger.info(f"Retry {retry}/{max_retries} after {retry_delay}s delay")
+                            time.sleep(retry_delay)
 
-                    if not data.empty:
-                        logger.info(f"✓ SUCCESS with {try_symbol} (Method 1)")
-                        logger.info(f"Date range: {data.index[0]} to {data.index[-1]}")
-                        break
+                        # Set timeout for requests
+                        session.request = lambda *args, **kwargs: requests.Session.request(
+                            session, *args, **{**kwargs, 'timeout': 10}
+                        )
 
-                    # Method 2: Without auto_adjust
-                    logger.info(f"Method 2: Trying without auto_adjust")
-                    data = ticker.history(
-                        period=period,
-                        interval=timeframe,
-                        auto_adjust=False,
-                        prepost=False
-                    )
-                    logger.info(f"Method 2 result: {len(data)} rows, empty={data.empty}")
+                        ticker = yf.Ticker(try_symbol, session=session)
 
-                    if not data.empty:
-                        logger.info(f"✓ SUCCESS with {try_symbol} (Method 2)")
-                        logger.info(f"Date range: {data.index[0]} to {data.index[-1]}")
-                        break
+                        # Method 1: With auto_adjust
+                        logger.info(f"Method 1: period={period}, interval={timeframe}, auto_adjust=True")
+                        data = ticker.history(
+                            period=period,
+                            interval=timeframe,
+                            auto_adjust=True,
+                            prepost=False,
+                            actions=False,
+                            timeout=10
+                        )
+                        logger.info(f"Method 1 result: {len(data)} rows, empty={data.empty}")
 
-                except Exception as e:
-                    logger.error(f"✗ Exception for {try_symbol}: {str(e)}")
-                    continue
+                        if not data.empty:
+                            logger.info(f"✓ SUCCESS with {try_symbol} (Method 1)")
+                            logger.info(f"Date range: {data.index[0]} to {data.index[-1]}")
+                            break
+
+                        # Method 2: Without auto_adjust
+                        logger.info(f"Method 2: Trying without auto_adjust")
+                        data = ticker.history(
+                            period=period,
+                            interval=timeframe,
+                            auto_adjust=False,
+                            prepost=False,
+                            timeout=10
+                        )
+                        logger.info(f"Method 2 result: {len(data)} rows, empty={data.empty}")
+
+                        if not data.empty:
+                            logger.info(f"✓ SUCCESS with {try_symbol} (Method 2)")
+                            logger.info(f"Date range: {data.index[0]} to {data.index[-1]}")
+                            break
+
+                    except Exception as e:
+                        logger.error(f"✗ Exception for {try_symbol} (attempt {retry + 1}/{max_retries}): {str(e)}")
+                        if retry == max_retries - 1:
+                            continue
+
+                if not data.empty:
+                    break
 
             if data.empty:
-                error_msg = f"No data for {symbol}. Tried: {', '.join(symbols_to_try)}"
-                logger.error(f"✗ FAILED: {error_msg}")
-                raise ValueError(error_msg)
+                # Fallback: Try alternative data source (Alpha Vantage Free API)
+                logger.warning(f"Yahoo Finance failed for {symbol}. Trying alternative source...")
+                data = self._try_alternative_source(symbol, timeframe, period)
+
+                if data.empty:
+                    error_msg = f"No data for {symbol}. Tried: {', '.join(symbols_to_try)} + alternative sources"
+                    logger.error(f"✗ FAILED: {error_msg}")
+                    raise ValueError(error_msg)
 
             # Round to appropriate decimal places
             decimal_places = 5 if any(fx in symbol for fx in ['=X', 'USD', 'EUR', 'GBP', 'JPY']) else 2
