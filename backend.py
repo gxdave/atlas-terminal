@@ -208,10 +208,11 @@ class ProbabilityAnalyzer:
 
             # Try different free APIs (pass original symbol, each method handles conversion)
             sources = [
-                self._try_yahoo_csv,  # Sometimes works when Ticker fails
-                self._try_twelvedata,  # Good for forex and indices
+                self._try_yahoo_csv,  # Direct CSV download (best fallback)
+                self._try_yahoo_finance_v8,  # Yahoo v8 API endpoint
+                self._try_investing_com,  # Symbol variations
+                self._try_twelvedata,  # Good for forex and indices (needs API key)
                 self._try_alphavantage,  # Free tier with API key
-                self._try_investing_com,  # Scraping fallback for indices/commodities
             ]
 
             for source_func in sources:
@@ -231,35 +232,113 @@ class ProbabilityAnalyzer:
             logger.error(f"All alternative sources failed: {e}")
             return pd.DataFrame()
 
-    def _try_investing_com(self, symbol: str, timeframe: str, period: str) -> pd.DataFrame:
-        """Try Investing.com-style data endpoint as last resort"""
+    def _try_yahoo_finance_v8(self, symbol: str, timeframe: str, period: str) -> pd.DataFrame:
+        """Try Yahoo Finance v8 API endpoint (sometimes works when others fail)"""
         import requests
         from datetime import datetime, timedelta
 
         try:
-            # This is a simplified fallback - in production you'd want proper scraping
-            # For now, we'll use public market data APIs
+            # Calculate dates
+            end_date = datetime.now()
+            period_map = {'1y': 365, '2y': 730, '5y': 1825, '10y': 3650}
+            days = period_map.get(period, 1825)
+            start_date = end_date - timedelta(days=days)
 
-            # Map symbols to common names
-            symbol_map = {
-                "^GSPC": "us-spx-500",
-                "^DJI": "usa-30",
-                "^NDX": "nq-100",
-                "^DAX": "germany-30",
-                "GC=F": "gold",
-                "CL=F": "crude-oil",
-                "SI=F": "silver"
+            # Convert to Unix timestamps
+            start_ts = int(start_date.timestamp())
+            end_ts = int(end_date.timestamp())
+
+            # Map timeframe
+            interval_map = {'1d': '1d', '1wk': '1wk', '1mo': '1mo'}
+            interval = interval_map.get(timeframe, '1d')
+
+            # v8 chart API endpoint
+            url = f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
+            params = {
+                'period1': start_ts,
+                'period2': end_ts,
+                'interval': interval,
+                'includePrePost': 'false',
+                'events': 'div,splits'
             }
 
-            if symbol not in symbol_map:
-                logger.info(f"Symbol {symbol} not supported by investing.com fallback")
-                return pd.DataFrame()
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'application/json'
+            }
 
-            logger.info(f"Note: Investing.com scraping requires additional setup - skipping for now")
+            logger.info(f"Yahoo v8 API: Trying {symbol}")
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+
+            if response.status_code == 200:
+                json_data = response.json()
+
+                if 'chart' in json_data and 'result' in json_data['chart']:
+                    result = json_data['chart']['result'][0]
+
+                    if 'timestamp' in result and 'indicators' in result:
+                        timestamps = result['timestamp']
+                        quote = result['indicators']['quote'][0]
+
+                        data = pd.DataFrame({
+                            'Open': quote.get('open', []),
+                            'High': quote.get('high', []),
+                            'Low': quote.get('low', []),
+                            'Close': quote.get('close', []),
+                            'Volume': quote.get('volume', [])
+                        }, index=pd.to_datetime(timestamps, unit='s'))
+
+                        data.dropna(subset=['Open', 'High', 'Low', 'Close'], inplace=True)
+
+                        if not data.empty:
+                            logger.info(f"Yahoo v8 API: SUCCESS - {len(data)} rows")
+                            return data
+
+            logger.warning(f"Yahoo v8 API: Failed with status {response.status_code}")
             return pd.DataFrame()
 
         except Exception as e:
-            logger.error(f"Investing.com fallback failed: {e}")
+            logger.error(f"Yahoo v8 API failed: {e}")
+            return pd.DataFrame()
+
+    def _try_investing_com(self, symbol: str, timeframe: str, period: str) -> pd.DataFrame:
+        """Try alternate symbol variations as last resort"""
+        import requests
+
+        try:
+            # Try common symbol variations for Yahoo Finance
+            variations = []
+
+            if symbol == "GC=F":
+                variations = ["GC=F", "GC.F", "GOLD"]
+            elif symbol == "^GSPC":
+                variations = ["^GSPC", "SPX", "INX"]
+            elif symbol == "^DJI":
+                variations = ["^DJI", "DJI", "INDU"]
+            elif symbol == "^NDX":
+                variations = ["^NDX", "NDX"]
+            elif symbol == "^DAX":
+                variations = ["^GDAXI", "^DAX", "DAX"]
+
+            if not variations:
+                return pd.DataFrame()
+
+            logger.info(f"Trying symbol variations: {variations}")
+
+            # Try Yahoo CSV with each variation
+            for var_symbol in variations:
+                try:
+                    data = self._try_yahoo_csv(var_symbol, timeframe, period)
+                    if not data.empty:
+                        logger.info(f"✓ SUCCESS with variation: {var_symbol}")
+                        return data
+                except:
+                    continue
+
+            return pd.DataFrame()
+
+        except Exception as e:
+            logger.error(f"Symbol variations failed: {e}")
             return pd.DataFrame()
 
     def _try_twelvedata(self, symbol: str, timeframe: str, period: str) -> pd.DataFrame:
@@ -321,11 +400,11 @@ class ProbabilityAnalyzer:
         return pd.DataFrame()
 
     def _try_yahoo_csv(self, symbol: str, timeframe: str, period: str) -> pd.DataFrame:
-        """Try Yahoo Finance with yfinance_cache workaround"""
+        """Try Yahoo Finance CSV endpoint directly (bypasses some blocks)"""
         try:
-            # Use yfinance download function directly (sometimes works when Ticker fails)
-            import yfinance as yf
+            import requests
             from datetime import datetime, timedelta
+            import time
 
             # Calculate dates
             end_date = datetime.now()
@@ -333,27 +412,62 @@ class ProbabilityAnalyzer:
             days = period_map.get(period, 1825)
             start_date = end_date - timedelta(days=days)
 
-            logger.info(f"Yahoo download(): Trying {symbol}")
+            # Convert to Unix timestamps
+            start_ts = int(start_date.timestamp())
+            end_ts = int(end_date.timestamp())
 
-            # Use yfinance.download instead of Ticker (sometimes works better)
-            data = yf.download(
-                symbol,
-                start=start_date,
-                end=end_date,
-                interval=timeframe,
-                progress=False,
-                auto_adjust=True
-            )
+            # Map timeframe to Yahoo interval
+            interval_map = {'1d': '1d', '1wk': '1wk', '1mo': '1mo'}
+            interval = interval_map.get(timeframe, '1d')
 
-            if not data.empty:
-                logger.info(f"Yahoo download(): SUCCESS - {len(data)} rows")
-                return data
+            # Yahoo Finance CSV download URL
+            url = f"https://query1.finance.yahoo.com/v7/finance/download/{symbol}"
+            params = {
+                'period1': start_ts,
+                'period2': end_ts,
+                'interval': interval,
+                'events': 'history',
+                'includeAdjustedClose': 'true'
+            }
+
+            # Enhanced headers to avoid blocking
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            }
+
+            logger.info(f"Yahoo CSV direct: Trying {symbol} via CSV endpoint")
+
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+
+            if response.status_code == 200 and len(response.text) > 100:
+                # Parse CSV
+                from io import StringIO
+                csv_data = StringIO(response.text)
+                data = pd.read_csv(csv_data)
+
+                if not data.empty and 'Date' in data.columns:
+                    data['Date'] = pd.to_datetime(data['Date'])
+                    data.set_index('Date', inplace=True)
+                    data.sort_index(inplace=True)
+
+                    # Ensure required columns exist
+                    required_cols = ['Open', 'High', 'Low', 'Close']
+                    if all(col in data.columns for col in required_cols):
+                        logger.info(f"Yahoo CSV direct: SUCCESS - {len(data)} rows")
+                        return data
+                    else:
+                        logger.warning(f"Yahoo CSV: Missing columns. Found: {data.columns.tolist()}")
             else:
-                logger.warning("Yahoo download(): No data returned")
-                return pd.DataFrame()
+                logger.warning(f"Yahoo CSV direct: HTTP {response.status_code}, content length: {len(response.text)}")
+
+            return pd.DataFrame()
 
         except Exception as e:
-            logger.error(f"Yahoo download() failed: {e}")
+            logger.error(f"Yahoo CSV direct failed: {e}")
             return pd.DataFrame()
 
     def _try_alphavantage(self, symbol: str, timeframe: str, period: str) -> pd.DataFrame:
