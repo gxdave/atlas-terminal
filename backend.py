@@ -41,14 +41,100 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Symbol Mapping for yfinance - try multiple variations
+# Symbol Mapping for different data sources
 SYMBOL_ALIASES = {
+    # Forex pairs
     "EURUSD=X": ["EURUSD=X", "EUR=X"],
     "GBPUSD=X": ["GBPUSD=X", "GBP=X"],
     "USDJPY=X": ["USDJPY=X", "JPY=X"],
     "AUDUSD=X": ["AUDUSD=X", "AUD=X"],
     "USDCHF=X": ["USDCHF=X", "CHF=X"]
 }
+
+# Symbol conversion for alternative data sources
+SYMBOL_CONVERSIONS = {
+    # Commodities
+    "GC=F": {  # Gold
+        "alphavantage": "GC",
+        "twelvedata": "GC",
+        "display": "Gold Futures"
+    },
+    "CL=F": {  # Crude Oil
+        "alphavantage": "CL",
+        "twelvedata": "CL",
+        "display": "Crude Oil Futures"
+    },
+    "SI=F": {  # Silver
+        "alphavantage": "SI",
+        "twelvedata": "SI",
+        "display": "Silver Futures"
+    },
+    # Indices
+    "^GSPC": {  # S&P 500
+        "alphavantage": "SPX",
+        "twelvedata": "SPX",
+        "display": "S&P 500"
+    },
+    "^NDX": {  # Nasdaq 100
+        "alphavantage": "NDX",
+        "twelvedata": "NDX",
+        "display": "Nasdaq 100"
+    },
+    "^DJI": {  # Dow Jones
+        "alphavantage": "DJI",
+        "twelvedata": "DJI",
+        "display": "Dow Jones"
+    },
+    "^DAX": {  # DAX
+        "alphavantage": "DAX",
+        "twelvedata": "DAX",
+        "display": "DAX"
+    },
+    # Forex (for completeness)
+    "EURUSD=X": {
+        "alphavantage": "EURUSD",
+        "twelvedata": "EUR/USD",
+        "display": "EUR/USD"
+    },
+    "GBPUSD=X": {
+        "alphavantage": "GBPUSD",
+        "twelvedata": "GBP/USD",
+        "display": "GBP/USD"
+    },
+    "USDJPY=X": {
+        "alphavantage": "USDJPY",
+        "twelvedata": "USD/JPY",
+        "display": "USD/JPY"
+    },
+    "AUDUSD=X": {
+        "alphavantage": "AUDUSD",
+        "twelvedata": "AUD/USD",
+        "display": "AUD/USD"
+    },
+    "USDCHF=X": {
+        "alphavantage": "USDCHF",
+        "twelvedata": "USD/CHF",
+        "display": "USD/CHF"
+    }
+}
+
+def convert_symbol_for_source(symbol: str, source: str) -> str:
+    """Convert Yahoo Finance symbol to format needed by alternative source"""
+    if symbol in SYMBOL_CONVERSIONS:
+        return SYMBOL_CONVERSIONS[symbol].get(source, symbol)
+
+    # Fallback: Basic conversion logic
+    clean_symbol = symbol.replace('=X', '').replace('=F', '').replace('^', '')
+
+    if source == "alphavantage":
+        return clean_symbol
+    elif source == "twelvedata":
+        # Forex pairs need special format for Twelve Data
+        if len(clean_symbol) == 6 and symbol.endswith('=X'):
+            return f"{clean_symbol[:3]}/{clean_symbol[3:]}"
+        return clean_symbol
+
+    return symbol
 
 # Assets Configuration
 ASSETS = {
@@ -122,9 +208,10 @@ class ProbabilityAnalyzer:
 
             # Try different free APIs (pass original symbol, each method handles conversion)
             sources = [
-                self._try_alphavantage,  # Most reliable free API
-                self._try_twelvedata,
                 self._try_yahoo_csv,  # Sometimes works when Ticker fails
+                self._try_twelvedata,  # Good for forex and indices
+                self._try_alphavantage,  # Free tier with API key
+                self._try_investing_com,  # Scraping fallback for indices/commodities
             ]
 
             for source_func in sources:
@@ -144,6 +231,37 @@ class ProbabilityAnalyzer:
             logger.error(f"All alternative sources failed: {e}")
             return pd.DataFrame()
 
+    def _try_investing_com(self, symbol: str, timeframe: str, period: str) -> pd.DataFrame:
+        """Try Investing.com-style data endpoint as last resort"""
+        import requests
+        from datetime import datetime, timedelta
+
+        try:
+            # This is a simplified fallback - in production you'd want proper scraping
+            # For now, we'll use public market data APIs
+
+            # Map symbols to common names
+            symbol_map = {
+                "^GSPC": "us-spx-500",
+                "^DJI": "usa-30",
+                "^NDX": "nq-100",
+                "^DAX": "germany-30",
+                "GC=F": "gold",
+                "CL=F": "crude-oil",
+                "SI=F": "silver"
+            }
+
+            if symbol not in symbol_map:
+                logger.info(f"Symbol {symbol} not supported by investing.com fallback")
+                return pd.DataFrame()
+
+            logger.info(f"Note: Investing.com scraping requires additional setup - skipping for now")
+            return pd.DataFrame()
+
+        except Exception as e:
+            logger.error(f"Investing.com fallback failed: {e}")
+            return pd.DataFrame()
+
     def _try_twelvedata(self, symbol: str, timeframe: str, period: str) -> pd.DataFrame:
         """Try Twelve Data free tier (no API key needed for some endpoints)"""
         import requests
@@ -155,14 +273,9 @@ class ProbabilityAnalyzer:
         interval_map = {'1d': '1day', '1wk': '1week', '1mo': '1month'}
         interval = interval_map.get(timeframe, '1day')
 
-        # Convert symbol format for Twelve Data
-        # EURUSD=X -> EUR/USD
-        api_symbol = symbol
-        if '=' in symbol:
-            base_symbol = symbol.replace('=X', '').replace('^', '')
-            if len(base_symbol) == 6:  # Forex pair like EURUSD
-                api_symbol = f"{base_symbol[:3]}/{base_symbol[3:]}"
-                logger.info(f"Converted {symbol} to Twelve Data format: {api_symbol}")
+        # Convert symbol format for Twelve Data using our conversion function
+        api_symbol = convert_symbol_for_source(symbol, "twelvedata")
+        logger.info(f"Converted {symbol} to Twelve Data format: {api_symbol}")
 
         params = {
             'symbol': api_symbol,
@@ -251,8 +364,8 @@ class ProbabilityAnalyzer:
             # Get API key from environment or use demo key
             api_key = os.environ.get("ALPHAVANTAGE_API_KEY", "demo")
 
-            # Convert symbol format
-            api_symbol = symbol.replace('=X', '').replace('^', '')
+            # Convert symbol format using our conversion function
+            api_symbol = convert_symbol_for_source(symbol, "alphavantage")
 
             # Map function based on timeframe
             function_map = {
@@ -262,8 +375,8 @@ class ProbabilityAnalyzer:
             }
             function = function_map.get(timeframe, 'TIME_SERIES_DAILY')
 
-            # For Forex pairs
-            if len(api_symbol) == 6:  # EURUSD
+            # For Forex pairs - detect if it's a 6-char forex symbol (EURUSD, GBPUSD, etc.)
+            if len(api_symbol) == 6 and symbol.endswith('=X'):  # EURUSD
                 from_currency = api_symbol[:3]
                 to_currency = api_symbol[3:]
                 function = 'FX_DAILY' if timeframe == '1d' else 'FX_WEEKLY' if timeframe == '1wk' else 'FX_MONTHLY'
@@ -277,6 +390,7 @@ class ProbabilityAnalyzer:
                     'outputsize': 'full'
                 }
             else:
+                # For stocks, indices, commodities
                 url = "https://www.alphavantage.co/query"
                 params = {
                     'function': function,
