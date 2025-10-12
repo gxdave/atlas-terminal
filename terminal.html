@@ -601,6 +601,205 @@
             margin-top: 10px;
             text-align: right;
         }
+
+        /* Interactive Chart Dashboard */
+        .chart-workspace {
+            position: relative;
+            min-height: 80vh;
+            background: #000;
+            border: 1px solid #333;
+            overflow: hidden;
+        }
+
+        .chart-window {
+            position: absolute;
+            background: #0f0f0f;
+            border: 2px solid #333;
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            transition: border-color 0.2s;
+            min-width: 300px;
+            min-height: 250px;
+        }
+
+        .chart-window.active {
+            border-color: #f7931a;
+            z-index: 100;
+        }
+
+        .chart-window-header {
+            background: #1a1a1a;
+            padding: 10px 15px;
+            cursor: move;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+            user-select: none;
+        }
+
+        .chart-window-title {
+            color: #f7931a;
+            font-size: 0.9rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .chart-window-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .chart-window-btn {
+            background: transparent;
+            border: 1px solid #555;
+            color: #888;
+            width: 24px;
+            height: 24px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .chart-window-btn:hover {
+            background: #333;
+            color: #f7931a;
+            border-color: #f7931a;
+        }
+
+        .chart-window-content {
+            padding: 10px;
+            height: calc(100% - 45px);
+            background: #000;
+        }
+
+        .chart-resize-handle {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 20px;
+            height: 20px;
+            cursor: nwse-resize;
+            background: linear-gradient(135deg, transparent 50%, #555 50%);
+        }
+
+        .chart-toolbar {
+            background: #0f0f0f;
+            padding: 15px;
+            border: 1px solid #333;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .chart-toolbar .btn {
+            padding: 10px 20px;
+            font-size: 0.85rem;
+        }
+
+        /* Chart Selection Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: #0f0f0f;
+            border: 2px solid #f7931a;
+            border-radius: 4px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            color: #f7931a;
+            font-size: 1.3rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f7931a;
+        }
+
+        .symbol-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .symbol-card {
+            background: #000;
+            border: 1px solid #333;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .symbol-card:hover {
+            border-color: #f7931a;
+            background: #1a1a1a;
+        }
+
+        .symbol-card-name {
+            color: #f7931a;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .symbol-card-symbol {
+            color: #888;
+            font-size: 0.85rem;
+        }
+
+        .layout-presets {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
+        .layout-preset-btn {
+            background: #000;
+            border: 1px solid #555;
+            color: #888;
+            padding: 10px 15px;
+            cursor: pointer;
+            font-family: 'Consolas', monospace;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .layout-preset-btn:hover {
+            background: #1a1a1a;
+            color: #f7931a;
+            border-color: #f7931a;
+        }
     </style>
 </head>
 <body>
@@ -838,45 +1037,39 @@
 
             <!-- Markets View -->
             <div class="view" id="markets">
-                <div class="terminal-card">
-                    <div class="terminal-card-header">
-                        <h2>Market Overview</h2>
+                <!-- Toolbar -->
+                <div class="chart-toolbar">
+                    <button class="btn" onclick="openChartSelector()">+ ADD CHART</button>
+                    <button class="btn" onclick="saveChartLayout()">SAVE LAYOUT</button>
+                    <button class="btn" onclick="loadChartLayout()">LOAD LAYOUT</button>
+                    <button class="btn" onclick="clearAllCharts()">CLEAR ALL</button>
+
+                    <div class="layout-presets">
+                        <button class="layout-preset-btn" onclick="applyLayoutPreset('single')">1x1</button>
+                        <button class="layout-preset-btn" onclick="applyLayoutPreset('dual')">2x1</button>
+                        <button class="layout-preset-btn" onclick="applyLayoutPreset('quad')">2x2</button>
+                        <button class="layout-preset-btn" onclick="applyLayoutPreset('triple')">3x1</button>
                     </div>
-                    <div class="terminal-card-body">
-                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
-                            <!-- EUR/USD Chart -->
-                            <div style="background: #000; border: 1px solid #333; padding: 10px;">
-                                <div style="color: #f7931a; margin-bottom: 10px; font-size: 0.9rem; text-align: center;">EUR/USD</div>
-                                <div class="tradingview-widget-container">
-                                    <div id="tradingview_eurusd"></div>
-                                </div>
-                            </div>
+                </div>
 
-                            <!-- S&P 500 Chart -->
-                            <div style="background: #000; border: 1px solid #333; padding: 10px;">
-                                <div style="color: #f7931a; margin-bottom: 10px; font-size: 0.9rem; text-align: center;">S&P 500</div>
-                                <div class="tradingview-widget-container">
-                                    <div id="tradingview_sp500"></div>
-                                </div>
-                            </div>
+                <!-- Chart Workspace -->
+                <div class="chart-workspace" id="chartWorkspace">
+                    <!-- Dynamic chart windows will be added here -->
+                </div>
+            </div>
 
-                            <!-- GOLD Chart -->
-                            <div style="background: #000; border: 1px solid #333; padding: 10px;">
-                                <div style="color: #f7931a; margin-bottom: 10px; font-size: 0.9rem; text-align: center;">GOLD</div>
-                                <div class="tradingview-widget-container">
-                                    <div id="tradingview_gold"></div>
-                                </div>
-                            </div>
-
-                            <!-- BTC/USD Chart -->
-                            <div style="background: #000; border: 1px solid #333; padding: 10px;">
-                                <div style="color: #f7931a; margin-bottom: 10px; font-size: 0.9rem; text-align: center;">BTC/USD</div>
-                                <div class="tradingview-widget-container">
-                                    <div id="tradingview_btc"></div>
-                                </div>
-                            </div>
-                        </div>
+            <!-- Chart Selection Modal -->
+            <div class="modal" id="chartSelectorModal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        SELECT CHART SYMBOL
                     </div>
+
+                    <div class="symbol-grid" id="symbolGrid">
+                        <!-- Dynamically populated -->
+                    </div>
+
+                    <button class="btn" onclick="closeChartSelector()" style="width: 100%; margin-top: 20px;">CANCEL</button>
                 </div>
             </div>
 
@@ -946,7 +1139,6 @@
 
         let currentPattern = ['Bullish', 'Bearish'];
         let assets = {};
-        let chartsInitialized = false;
 
         // Initialize
         window.onload = async () => {
@@ -957,94 +1149,316 @@
             updatePatternVisual();
         };
 
-        // Initialize TradingView Charts
-        function initTradingViewCharts() {
-            if (chartsInitialized) return;
-            chartsInitialized = true;
+        // Interactive Chart System
+        let chartWindows = [];
+        let chartIdCounter = 0;
+        let activeChartWindow = null;
+        let draggedWindow = null;
+        let resizedWindow = null;
+        let dragOffset = { x: 0, y: 0 };
 
-            // EUR/USD Chart
-            new TradingView.widget({
-                "width": "100%",
-                "height": 400,
-                "symbol": "FX:EURUSD",
-                "interval": "D",
-                "timezone": "Etc/UTC",
-                "theme": "dark",
-                "style": "1",
-                "locale": "en",
-                "toolbar_bg": "#000000",
-                "enable_publishing": false,
-                "hide_top_toolbar": false,
-                "hide_legend": true,
-                "save_image": false,
-                "container_id": "tradingview_eurusd",
-                "backgroundColor": "#000000",
-                "gridColor": "#1a1a1a",
-                "hide_side_toolbar": false
+        const AVAILABLE_SYMBOLS = [
+            { name: "EUR/USD", symbol: "FX:EURUSD", category: "Forex" },
+            { name: "GBP/USD", symbol: "FX:GBPUSD", category: "Forex" },
+            { name: "USD/JPY", symbol: "FX:USDJPY", category: "Forex" },
+            { name: "AUD/USD", symbol: "FX:AUDUSD", category: "Forex" },
+            { name: "USD/CHF", symbol: "FX:USDCHF", category: "Forex" },
+            { name: "S&P 500", symbol: "SP:SPX", category: "Indices" },
+            { name: "Nasdaq 100", symbol: "NASDAQ:NDX", category: "Indices" },
+            { name: "Dow Jones", symbol: "DJ:DJI", category: "Indices" },
+            { name: "DAX", symbol: "XETR:DAX", category: "Indices" },
+            { name: "Gold", symbol: "COMEX:GC1!", category: "Commodities" },
+            { name: "Silver", symbol: "COMEX:SI1!", category: "Commodities" },
+            { name: "Crude Oil", symbol: "NYMEX:CL1!", category: "Commodities" },
+            { name: "Bitcoin", symbol: "BITSTAMP:BTCUSD", category: "Crypto" },
+            { name: "Ethereum", symbol: "BITSTAMP:ETHUSD", category: "Crypto" },
+            { name: "Apple", symbol: "NASDAQ:AAPL", category: "Stocks" },
+            { name: "Microsoft", symbol: "NASDAQ:MSFT", category: "Stocks" },
+            { name: "Tesla", symbol: "NASDAQ:TSLA", category: "Stocks" },
+            { name: "Amazon", symbol: "NASDAQ:AMZN", category: "Stocks" },
+            { name: "Google", symbol: "NASDAQ:GOOGL", category: "Stocks" },
+            { name: "NVIDIA", symbol: "NASDAQ:NVDA", category: "Stocks" },
+        ];
+
+        function openChartSelector() {
+            const modal = document.getElementById('chartSelectorModal');
+            const symbolGrid = document.getElementById('symbolGrid');
+
+            symbolGrid.innerHTML = '';
+
+            AVAILABLE_SYMBOLS.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'symbol-card';
+                card.onclick = () => createChartWindow(item.symbol, item.name);
+
+                card.innerHTML = `
+                    <div class="symbol-card-name">${item.name}</div>
+                    <div class="symbol-card-symbol">${item.category}</div>
+                `;
+
+                symbolGrid.appendChild(card);
             });
 
-            // S&P 500 Chart
-            new TradingView.widget({
-                "width": "100%",
-                "height": 400,
-                "symbol": "SP:SPX",
-                "interval": "D",
-                "timezone": "Etc/UTC",
-                "theme": "dark",
-                "style": "1",
-                "locale": "en",
-                "toolbar_bg": "#000000",
-                "enable_publishing": false,
-                "hide_top_toolbar": false,
-                "hide_legend": true,
-                "save_image": false,
-                "container_id": "tradingview_sp500",
-                "backgroundColor": "#000000",
-                "gridColor": "#1a1a1a",
-                "hide_side_toolbar": false
+            modal.classList.add('active');
+        }
+
+        function closeChartSelector() {
+            document.getElementById('chartSelectorModal').classList.remove('active');
+        }
+
+        function createChartWindow(symbol, name, x = 50, y = 50, width = 600, height = 400) {
+            const chartId = `chart_${chartIdCounter++}`;
+            const containerId = `tradingview_${chartId}`;
+
+            const chartWindow = document.createElement('div');
+            chartWindow.className = 'chart-window';
+            chartWindow.id = chartId;
+            chartWindow.style.left = x + 'px';
+            chartWindow.style.top = y + 'px';
+            chartWindow.style.width = width + 'px';
+            chartWindow.style.height = height + 'px';
+
+            chartWindow.innerHTML = `
+                <div class="chart-window-header">
+                    <div class="chart-window-title">${name}</div>
+                    <div class="chart-window-controls">
+                        <button class="chart-window-btn" onclick="minimizeChart('${chartId}')" title="Minimize">_</button>
+                        <button class="chart-window-btn" onclick="maximizeChart('${chartId}')" title="Maximize">□</button>
+                        <button class="chart-window-btn" onclick="closeChart('${chartId}')" title="Close">×</button>
+                    </div>
+                </div>
+                <div class="chart-window-content">
+                    <div id="${containerId}" style="width: 100%; height: 100%;"></div>
+                </div>
+                <div class="chart-resize-handle"></div>
+            `;
+
+            document.getElementById('chartWorkspace').appendChild(chartWindow);
+
+            // Store chart info
+            chartWindows.push({
+                id: chartId,
+                symbol: symbol,
+                name: name,
+                x: x,
+                y: y,
+                width: width,
+                height: height
             });
 
-            // GOLD Chart
-            new TradingView.widget({
-                "width": "100%",
-                "height": 400,
-                "symbol": "COMEX:GC1!",
-                "interval": "D",
-                "timezone": "Etc/UTC",
-                "theme": "dark",
-                "style": "1",
-                "locale": "en",
-                "toolbar_bg": "#000000",
-                "enable_publishing": false,
-                "hide_top_toolbar": false,
-                "hide_legend": true,
-                "save_image": false,
-                "container_id": "tradingview_gold",
-                "backgroundColor": "#000000",
-                "gridColor": "#1a1a1a",
-                "hide_side_toolbar": false
-            });
+            // Initialize TradingView chart
+            setTimeout(() => {
+                new TradingView.widget({
+                    "width": "100%",
+                    "height": "100%",
+                    "symbol": symbol,
+                    "interval": "D",
+                    "timezone": "Etc/UTC",
+                    "theme": "dark",
+                    "style": "1",
+                    "locale": "en",
+                    "toolbar_bg": "#000000",
+                    "enable_publishing": false,
+                    "hide_top_toolbar": false,
+                    "hide_legend": false,
+                    "save_image": false,
+                    "container_id": containerId,
+                    "backgroundColor": "#000000",
+                    "gridColor": "#1a1a1a",
+                    "hide_side_toolbar": false
+                });
+            }, 100);
 
-            // BTC/USD Chart
-            new TradingView.widget({
-                "width": "100%",
-                "height": 400,
-                "symbol": "BITSTAMP:BTCUSD",
-                "interval": "D",
-                "timezone": "Etc/UTC",
-                "theme": "dark",
-                "style": "1",
-                "locale": "en",
-                "toolbar_bg": "#000000",
-                "enable_publishing": false,
-                "hide_top_toolbar": false,
-                "hide_legend": true,
-                "save_image": false,
-                "container_id": "tradingview_btc",
-                "backgroundColor": "#000000",
-                "gridColor": "#1a1a1a",
-                "hide_side_toolbar": false
+            // Make draggable
+            makeDraggable(chartWindow);
+
+            // Make resizable
+            makeResizable(chartWindow);
+
+            // Set as active
+            setActiveWindow(chartWindow);
+
+            // Close modal
+            closeChartSelector();
+        }
+
+        function makeDraggable(windowElement) {
+            const header = windowElement.querySelector('.chart-window-header');
+
+            header.addEventListener('mousedown', (e) => {
+                if (e.target.classList.contains('chart-window-btn')) return;
+
+                draggedWindow = windowElement;
+                setActiveWindow(windowElement);
+
+                const rect = windowElement.getBoundingClientRect();
+                const workspace = document.getElementById('chartWorkspace').getBoundingClientRect();
+
+                dragOffset.x = e.clientX - rect.left;
+                dragOffset.y = e.clientY - rect.top;
+
+                e.preventDefault();
             });
+        }
+
+        function makeResizable(windowElement) {
+            const handle = windowElement.querySelector('.chart-resize-handle');
+
+            handle.addEventListener('mousedown', (e) => {
+                resizedWindow = windowElement;
+                setActiveWindow(windowElement);
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        }
+
+        // Global mouse event listeners
+        document.addEventListener('mousemove', (e) => {
+            if (draggedWindow) {
+                const workspace = document.getElementById('chartWorkspace').getBoundingClientRect();
+                let newX = e.clientX - workspace.left - dragOffset.x;
+                let newY = e.clientY - workspace.top - dragOffset.y;
+
+                // Keep within bounds
+                newX = Math.max(0, Math.min(newX, workspace.width - draggedWindow.offsetWidth));
+                newY = Math.max(0, Math.min(newY, workspace.height - draggedWindow.offsetHeight));
+
+                draggedWindow.style.left = newX + 'px';
+                draggedWindow.style.top = newY + 'px';
+            }
+
+            if (resizedWindow) {
+                const rect = resizedWindow.getBoundingClientRect();
+                const workspace = document.getElementById('chartWorkspace').getBoundingClientRect();
+
+                let newWidth = e.clientX - rect.left;
+                let newHeight = e.clientY - rect.top;
+
+                newWidth = Math.max(300, Math.min(newWidth, workspace.width - (rect.left - workspace.left)));
+                newHeight = Math.max(250, Math.min(newHeight, workspace.height - (rect.top - workspace.top)));
+
+                resizedWindow.style.width = newWidth + 'px';
+                resizedWindow.style.height = newHeight + 'px';
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            draggedWindow = null;
+            resizedWindow = null;
+        });
+
+        function setActiveWindow(windowElement) {
+            document.querySelectorAll('.chart-window').forEach(w => w.classList.remove('active'));
+            windowElement.classList.add('active');
+            activeChartWindow = windowElement;
+        }
+
+        function closeChart(chartId) {
+            const chartWindow = document.getElementById(chartId);
+            if (chartWindow) {
+                chartWindow.remove();
+                chartWindows = chartWindows.filter(c => c.id !== chartId);
+            }
+        }
+
+        function minimizeChart(chartId) {
+            const chartWindow = document.getElementById(chartId);
+            if (chartWindow) {
+                chartWindow.style.height = '45px';
+                chartWindow.querySelector('.chart-window-content').style.display = 'none';
+                chartWindow.querySelector('.chart-resize-handle').style.display = 'none';
+            }
+        }
+
+        function maximizeChart(chartId) {
+            const chartWindow = document.getElementById(chartId);
+            const workspace = document.getElementById('chartWorkspace');
+
+            if (chartWindow) {
+                if (chartWindow.style.width === workspace.clientWidth + 'px') {
+                    // Restore
+                    chartWindow.style.left = '50px';
+                    chartWindow.style.top = '50px';
+                    chartWindow.style.width = '600px';
+                    chartWindow.style.height = '400px';
+                } else {
+                    // Maximize
+                    chartWindow.style.left = '0';
+                    chartWindow.style.top = '0';
+                    chartWindow.style.width = workspace.clientWidth + 'px';
+                    chartWindow.style.height = workspace.clientHeight + 'px';
+                }
+
+                chartWindow.querySelector('.chart-window-content').style.display = 'block';
+                chartWindow.querySelector('.chart-resize-handle').style.display = 'block';
+            }
+        }
+
+        function clearAllCharts() {
+            if (confirm('Remove all charts?')) {
+                document.getElementById('chartWorkspace').innerHTML = '';
+                chartWindows = [];
+            }
+        }
+
+        function saveChartLayout() {
+            const layout = chartWindows.map(chart => ({
+                symbol: chart.symbol,
+                name: chart.name,
+                x: parseInt(document.getElementById(chart.id).style.left),
+                y: parseInt(document.getElementById(chart.id).style.top),
+                width: parseInt(document.getElementById(chart.id).style.width),
+                height: parseInt(document.getElementById(chart.id).style.height)
+            }));
+
+            localStorage.setItem('atlasChartLayout', JSON.stringify(layout));
+            alert('Layout saved!');
+        }
+
+        function loadChartLayout() {
+            const saved = localStorage.getItem('atlasChartLayout');
+            if (saved) {
+                clearAllCharts();
+                const layout = JSON.parse(saved);
+                layout.forEach(chart => {
+                    createChartWindow(chart.symbol, chart.name, chart.x, chart.y, chart.width, chart.height);
+                });
+            } else {
+                alert('No saved layout found');
+            }
+        }
+
+        function applyLayoutPreset(preset) {
+            clearAllCharts();
+
+            const workspace = document.getElementById('chartWorkspace');
+            const workspaceWidth = workspace.clientWidth;
+            const workspaceHeight = workspace.clientHeight;
+
+            switch (preset) {
+                case 'single':
+                    createChartWindow('FX:EURUSD', 'EUR/USD', 20, 20, workspaceWidth - 40, workspaceHeight - 40);
+                    break;
+                case 'dual':
+                    const dualWidth = (workspaceWidth / 2) - 30;
+                    createChartWindow('FX:EURUSD', 'EUR/USD', 20, 20, dualWidth, workspaceHeight - 40);
+                    createChartWindow('SP:SPX', 'S&P 500', dualWidth + 40, 20, dualWidth, workspaceHeight - 40);
+                    break;
+                case 'quad':
+                    const quadWidth = (workspaceWidth / 2) - 30;
+                    const quadHeight = (workspaceHeight / 2) - 30;
+                    createChartWindow('FX:EURUSD', 'EUR/USD', 20, 20, quadWidth, quadHeight);
+                    createChartWindow('SP:SPX', 'S&P 500', quadWidth + 40, 20, quadWidth, quadHeight);
+                    createChartWindow('COMEX:GC1!', 'Gold', 20, quadHeight + 40, quadWidth, quadHeight);
+                    createChartWindow('BITSTAMP:BTCUSD', 'Bitcoin', quadWidth + 40, quadHeight + 40, quadWidth, quadHeight);
+                    break;
+                case 'triple':
+                    const tripleWidth = (workspaceWidth / 3) - 25;
+                    createChartWindow('FX:EURUSD', 'EUR/USD', 15, 20, tripleWidth, workspaceHeight - 40);
+                    createChartWindow('SP:SPX', 'S&P 500', tripleWidth + 30, 20, tripleWidth, workspaceHeight - 40);
+                    createChartWindow('COMEX:GC1!', 'Gold', (tripleWidth * 2) + 45, 20, tripleWidth, workspaceHeight - 40);
+                    break;
+            }
         }
 
         // Update time
@@ -1079,11 +1493,6 @@
                 'profile': 'PROFILE'
             };
             document.getElementById('headerTitle').textContent = titles[viewName];
-
-            // Initialize TradingView charts when Markets view is opened
-            if (viewName === 'markets') {
-                setTimeout(initTradingViewCharts, 100);
-            }
 
             // Load economic data when Economic view is opened
             if (viewName === 'economic' && document.getElementById('economicDataTable').innerHTML === '') {
