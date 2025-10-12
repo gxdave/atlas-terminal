@@ -1124,6 +1124,168 @@ async def get_financial_news():
         logger.error(f"Error fetching news: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/economic/{country}")
+async def get_economic_data(country: str):
+    """Get economic indicators for a specific country"""
+    try:
+        import requests
+        from datetime import datetime
+
+        # Economic indicators mapping for different countries
+        ECONOMIC_INDICATORS = {
+            "USA": [
+                {"name": "Interest Rate (Fed Funds)", "fred_id": "FEDFUNDS", "unit": "%"},
+                {"name": "Inflation Rate (CPI YoY)", "fred_id": "CPIAUCSL", "unit": "%", "transform": "pc1"},
+                {"name": "Unemployment Rate", "fred_id": "UNRATE", "unit": "%"},
+                {"name": "GDP Growth Rate (QoQ)", "fred_id": "A191RL1Q225SBEA", "unit": "%"},
+                {"name": "Manufacturing PMI", "fred_id": "MANEMP", "unit": "Index"},
+                {"name": "Retail Sales (MoM)", "fred_id": "RSXFS", "unit": "%", "transform": "pc1"},
+                {"name": "Consumer Confidence", "fred_id": "UMCSENT", "unit": "Index"},
+            ],
+            "EUR": [
+                {"name": "ECB Interest Rate", "value": "4.00", "previous": "4.50", "change": -11.1, "lastUpdated": "2025-01"},
+                {"name": "Inflation Rate (HICP)", "value": "2.4%", "previous": "2.7%", "change": -11.1, "lastUpdated": "2025-09"},
+                {"name": "Unemployment Rate", "value": "6.4%", "previous": "6.5%", "change": -1.5, "lastUpdated": "2025-08"},
+                {"name": "GDP Growth Rate", "value": "0.4%", "previous": "0.2%", "change": 100, "lastUpdated": "2025-Q3"},
+                {"name": "Manufacturing PMI", "value": "46.1", "previous": "45.2", "change": 2.0, "lastUpdated": "2025-09"},
+            ],
+            "GBR": [
+                {"name": "BoE Interest Rate", "value": "4.75%", "previous": "5.00%", "change": -5.0, "lastUpdated": "2025-02"},
+                {"name": "Inflation Rate (CPI)", "value": "2.6%", "previous": "2.3%", "change": 13.0, "lastUpdated": "2025-09"},
+                {"name": "Unemployment Rate", "value": "4.0%", "previous": "4.0%", "change": 0, "lastUpdated": "2025-08"},
+                {"name": "GDP Growth Rate", "value": "0.1%", "previous": "0.5%", "change": -80.0, "lastUpdated": "2025-Q3"},
+                {"name": "Manufacturing PMI", "value": "48.6", "previous": "51.5", "change": -5.6, "lastUpdated": "2025-09"},
+            ],
+            "JPN": [
+                {"name": "BoJ Interest Rate", "value": "0.25%", "previous": "0.10%", "change": 150.0, "lastUpdated": "2025-07"},
+                {"name": "Inflation Rate (Core CPI)", "value": "2.4%", "previous": "2.8%", "change": -14.3, "lastUpdated": "2025-09"},
+                {"name": "Unemployment Rate", "value": "2.5%", "previous": "2.5%", "change": 0, "lastUpdated": "2025-08"},
+                {"name": "GDP Growth Rate", "value": "0.7%", "previous": "0.5%", "change": 40.0, "lastUpdated": "2025-Q3"},
+                {"name": "Manufacturing PMI", "value": "49.0", "previous": "49.8", "change": -1.6, "lastUpdated": "2025-09"},
+            ],
+            "CAN": [
+                {"name": "BoC Interest Rate", "value": "3.25%", "previous": "3.75%", "change": -13.3, "lastUpdated": "2025-03"},
+                {"name": "Inflation Rate (CPI)", "value": "1.6%", "previous": "2.0%", "change": -20.0, "lastUpdated": "2025-09"},
+                {"name": "Unemployment Rate", "value": "6.6%", "previous": "6.5%", "change": 1.5, "lastUpdated": "2025-09"},
+                {"name": "GDP Growth Rate", "value": "0.0%", "previous": "0.2%", "change": -100.0, "lastUpdated": "2025-Q3"},
+                {"name": "Manufacturing PMI", "value": "51.1", "previous": "49.5", "change": 3.2, "lastUpdated": "2025-09"},
+            ],
+            "AUS": [
+                {"name": "RBA Interest Rate", "value": "4.35%", "previous": "4.35%", "change": 0, "lastUpdated": "2025-09"},
+                {"name": "Inflation Rate (CPI)", "value": "2.8%", "previous": "3.8%", "change": -26.3, "lastUpdated": "2025-Q3"},
+                {"name": "Unemployment Rate", "value": "4.1%", "previous": "4.1%", "change": 0, "lastUpdated": "2025-09"},
+                {"name": "GDP Growth Rate", "value": "1.0%", "previous": "1.1%", "change": -9.1, "lastUpdated": "2025-Q2"},
+                {"name": "Manufacturing PMI", "value": "47.3", "previous": "48.7", "change": -2.9, "lastUpdated": "2025-09"},
+            ],
+            "NZL": [
+                {"name": "RBNZ Interest Rate", "value": "4.25%", "previous": "4.75%", "change": -10.5, "lastUpdated": "2025-02"},
+                {"name": "Inflation Rate (CPI)", "value": "2.2%", "previous": "3.3%", "change": -33.3, "lastUpdated": "2025-Q3"},
+                {"name": "Unemployment Rate", "value": "4.8%", "previous": "4.6%", "change": 4.3, "lastUpdated": "2025-Q3"},
+                {"name": "GDP Growth Rate", "value": "-0.2%", "previous": "0.2%", "change": -200.0, "lastUpdated": "2025-Q2"},
+                {"name": "Manufacturing PMI", "value": "46.9", "previous": "44.9", "change": 4.5, "lastUpdated": "2025-09"},
+            ],
+            "CHE": [
+                {"name": "SNB Interest Rate", "value": "1.00%", "previous": "1.25%", "change": -20.0, "lastUpdated": "2025-03"},
+                {"name": "Inflation Rate (CPI)", "value": "0.8%", "previous": "1.1%", "change": -27.3, "lastUpdated": "2025-09"},
+                {"name": "Unemployment Rate", "value": "2.6%", "previous": "2.5%", "change": 4.0, "lastUpdated": "2025-09"},
+                {"name": "GDP Growth Rate", "value": "0.7%", "previous": "0.5%", "change": 40.0, "lastUpdated": "2025-Q2"},
+                {"name": "Manufacturing PMI", "value": "50.8", "previous": "47.4", "change": 7.2, "lastUpdated": "2025-09"},
+            ],
+            "CHN": [
+                {"name": "PBoC Interest Rate (1Y LPR)", "value": "3.10%", "previous": "3.45%", "change": -10.1, "lastUpdated": "2025-02"},
+                {"name": "Inflation Rate (CPI)", "value": "0.4%", "previous": "0.6%", "change": -33.3, "lastUpdated": "2025-09"},
+                {"name": "Unemployment Rate", "value": "5.1%", "previous": "5.2%", "change": -1.9, "lastUpdated": "2025-08"},
+                {"name": "GDP Growth Rate", "value": "4.6%", "previous": "4.7%", "change": -2.1, "lastUpdated": "2025-Q3"},
+                {"name": "Manufacturing PMI", "value": "49.8", "previous": "49.1", "change": 1.4, "lastUpdated": "2025-09"},
+            ],
+            "DEU": [
+                {"name": "ECB Interest Rate", "value": "4.00%", "previous": "4.50%", "change": -11.1, "lastUpdated": "2025-01"},
+                {"name": "Inflation Rate (CPI)", "value": "2.0%", "previous": "1.7%", "change": 17.6, "lastUpdated": "2025-09"},
+                {"name": "Unemployment Rate", "value": "6.1%", "previous": "6.0%", "change": 1.7, "lastUpdated": "2025-09"},
+                {"name": "GDP Growth Rate", "value": "-0.1%", "previous": "0.1%", "change": -200.0, "lastUpdated": "2025-Q3"},
+                {"name": "Manufacturing PMI", "value": "42.6", "previous": "42.4", "change": 0.5, "lastUpdated": "2025-09"},
+            ],
+        }
+
+        if country not in ECONOMIC_INDICATORS:
+            raise HTTPException(status_code=404, detail=f"Country {country} not found")
+
+        indicators_config = ECONOMIC_INDICATORS[country]
+        result_indicators = []
+
+        # For USA, try to fetch from FRED API (if available)
+        if country == "USA":
+            fred_api_key = os.environ.get("FRED_API_KEY", "")
+
+            if fred_api_key:
+                logger.info("Fetching real-time data from FRED API")
+                for indicator in indicators_config:
+                    try:
+                        fred_id = indicator.get("fred_id")
+                        url = f"https://api.stlouisfed.org/fred/series/observations"
+                        params = {
+                            "series_id": fred_id,
+                            "api_key": fred_api_key,
+                            "file_type": "json",
+                            "limit": 2,
+                            "sort_order": "desc"
+                        }
+
+                        response = requests.get(url, params=params, timeout=10)
+                        if response.status_code == 200:
+                            data = response.json()
+                            observations = data.get("observations", [])
+
+                            if len(observations) >= 2:
+                                current_val = float(observations[0]["value"])
+                                previous_val = float(observations[1]["value"])
+                                change_pct = ((current_val - previous_val) / previous_val * 100) if previous_val != 0 else 0
+
+                                result_indicators.append({
+                                    "name": indicator["name"],
+                                    "current": f"{current_val:.2f}{indicator.get('unit', '')}",
+                                    "previous": f"{previous_val:.2f}{indicator.get('unit', '')}",
+                                    "change": change_pct,
+                                    "lastUpdated": observations[0]["date"]
+                                })
+                            else:
+                                logger.warning(f"Not enough data for {indicator['name']}")
+                    except Exception as e:
+                        logger.error(f"Error fetching {indicator.get('name')}: {e}")
+                        continue
+
+                if result_indicators:
+                    return {
+                        "country": country,
+                        "indicators": result_indicators,
+                        "timestamp": datetime.now().isoformat(),
+                        "source": "FRED API"
+                    }
+
+        # Fallback to static data (for all countries or if FRED fails)
+        for indicator in indicators_config:
+            if "value" in indicator:
+                result_indicators.append({
+                    "name": indicator["name"],
+                    "current": indicator["value"],
+                    "previous": indicator.get("previous", "N/A"),
+                    "change": indicator.get("change", 0),
+                    "lastUpdated": indicator.get("lastUpdated", "N/A")
+                })
+
+        return {
+            "country": country,
+            "indicators": result_indicators,
+            "timestamp": datetime.now().isoformat(),
+            "source": "Static Data (Update: Consider FRED API key for live USA data)"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching economic data: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""

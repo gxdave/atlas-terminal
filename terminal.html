@@ -547,6 +547,60 @@
             color: #666;
             font-size: 0.75rem;
         }
+
+        /* Economic Data Table */
+        .economic-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: #000;
+        }
+
+        .economic-table th {
+            background: #1a1a1a;
+            color: #f7931a;
+            padding: 15px;
+            text-align: left;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.85rem;
+            border-bottom: 2px solid #f7931a;
+        }
+
+        .economic-table td {
+            padding: 15px;
+            border-bottom: 1px solid #333;
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+
+        .economic-table tr:hover {
+            background: #0a0a0a;
+        }
+
+        .economic-table .indicator-name {
+            color: #f7931a;
+            font-weight: bold;
+        }
+
+        .economic-table .value-positive {
+            color: #00ff00;
+        }
+
+        .economic-table .value-negative {
+            color: #ff0000;
+        }
+
+        .economic-table .value-neutral {
+            color: #f7931a;
+        }
+
+        .last-updated {
+            color: #666;
+            font-size: 0.75rem;
+            margin-top: 10px;
+            text-align: right;
+        }
     </style>
 </head>
 <body>
@@ -569,6 +623,9 @@
             </div>
             <div class="nav-item" onclick="switchView('markets')">
                 <span>Markets</span>
+            </div>
+            <div class="nav-item" onclick="switchView('economic')">
+                <span>Economic Data</span>
             </div>
             <div class="nav-item" onclick="switchView('portfolio')">
                 <span>Portfolio</span>
@@ -823,6 +880,41 @@
                 </div>
             </div>
 
+            <!-- Economic Data View -->
+            <div class="view" id="economic">
+                <div class="terminal-card">
+                    <div class="terminal-card-header">
+                        <h2>Economic Indicators</h2>
+                    </div>
+                    <div class="terminal-card-body">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="economySelect">Select Economy</label>
+                                <select id="economySelect" onchange="loadEconomicData()">
+                                    <option value="USA">United States</option>
+                                    <option value="EUR">Eurozone</option>
+                                    <option value="GBR">United Kingdom</option>
+                                    <option value="JPN">Japan</option>
+                                    <option value="CAN">Canada</option>
+                                    <option value="AUS">Australia</option>
+                                    <option value="NZL">New Zealand</option>
+                                    <option value="CHE">Switzerland</option>
+                                    <option value="CHN">China</option>
+                                    <option value="DEU">Germany</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div id="economicLoading" class="loading" style="display: none;">
+                            <div class="spinner"></div>
+                            <p style="color: #888;">LOADING ECONOMIC DATA...</p>
+                        </div>
+
+                        <div id="economicDataTable" style="margin-top: 30px;"></div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Portfolio View -->
             <div class="view" id="portfolio">
                 <div class="coming-soon">
@@ -982,6 +1074,7 @@
                 'analyzer': 'PROBABILITY ANALYZER',
                 'news': 'NEWS FEED',
                 'markets': 'MARKETS',
+                'economic': 'ECONOMIC DATA',
                 'portfolio': 'PORTFOLIO',
                 'profile': 'PROFILE'
             };
@@ -990,6 +1083,11 @@
             // Initialize TradingView charts when Markets view is opened
             if (viewName === 'markets') {
                 setTimeout(initTradingViewCharts, 100);
+            }
+
+            // Load economic data when Economic view is opened
+            if (viewName === 'economic' && document.getElementById('economicDataTable').innerHTML === '') {
+                loadEconomicData();
             }
         }
 
@@ -1274,6 +1372,70 @@
                 loadNews();
             }
         };
+
+        // Load Economic Data
+        async function loadEconomicData() {
+            const economy = document.getElementById('economySelect').value;
+            const economicLoading = document.getElementById('economicLoading');
+            const economicDataTable = document.getElementById('economicDataTable');
+
+            economicLoading.style.display = 'block';
+            economicDataTable.innerHTML = '';
+
+            try {
+                const response = await fetch(`${API_URL}/api/economic/${economy}`);
+                const data = await response.json();
+
+                if (data.indicators && data.indicators.length > 0) {
+                    let tableHTML = `
+                        <table class="economic-table">
+                            <thead>
+                                <tr>
+                                    <th>Indicator</th>
+                                    <th>Current Value</th>
+                                    <th>Previous</th>
+                                    <th>Change</th>
+                                    <th>Last Updated</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+
+                    data.indicators.forEach(indicator => {
+                        const changeClass = indicator.change > 0 ? 'value-positive' :
+                                          indicator.change < 0 ? 'value-negative' : 'value-neutral';
+                        const changeSymbol = indicator.change > 0 ? '▲' :
+                                           indicator.change < 0 ? '▼' : '━';
+
+                        tableHTML += `
+                            <tr>
+                                <td class="indicator-name">${indicator.name}</td>
+                                <td class="value-neutral">${indicator.current}</td>
+                                <td>${indicator.previous || 'N/A'}</td>
+                                <td class="${changeClass}">${changeSymbol} ${Math.abs(indicator.change || 0).toFixed(2)}%</td>
+                                <td>${indicator.lastUpdated || 'N/A'}</td>
+                            </tr>
+                        `;
+                    });
+
+                    tableHTML += `
+                            </tbody>
+                        </table>
+                        <div class="last-updated">Data as of: ${data.timestamp || new Date().toLocaleString()}</div>
+                    `;
+
+                    economicDataTable.innerHTML = tableHTML;
+                } else {
+                    economicDataTable.innerHTML = '<div class="alert alert-info">NO ECONOMIC DATA AVAILABLE</div>';
+                }
+
+            } catch (error) {
+                console.error('Error loading economic data:', error);
+                economicDataTable.innerHTML = '<div class="alert alert-error">FAILED TO LOAD ECONOMIC DATA</div>';
+            } finally {
+                economicLoading.style.display = 'none';
+            }
+        }
     </script>
 </body>
 </html>
