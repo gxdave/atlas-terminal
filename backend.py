@@ -1286,6 +1286,216 @@ async def get_economic_data(country: str):
         logger.error(f"Error fetching economic data: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/risk-radar")
+async def get_risk_radar():
+    """Get Risk Radar market stress analysis"""
+    try:
+        from fredapi import Fred
+        import warnings
+        warnings.filterwarnings('ignore')
+
+        # FRED API Key - aus Environment Variable oder Standard
+        FRED_API_KEY = os.environ.get("FRED_API_KEY", "a650cab7da43489ec04d1073446a338f")
+        fred = Fred(api_key=FRED_API_KEY)
+
+        # Daten laden (letzte 3 Jahre für Z-Score Berechnung)
+        start_date = (datetime.now() - timedelta(days=3*365)).strftime("%Y-%m-%d")
+        end_date = datetime.now().strftime("%Y-%m-%d")
+
+        logger.info(f"Loading Risk Radar data from {start_date} to {end_date}")
+
+        # Basis-Indikatoren laden
+        series_config = {
+            'BAMLH0A0HYM2': 'HY_OAS',      # High Yield Option-Adjusted Spread
+            'BAMLC0A0CM': 'IG_OAS',        # Investment Grade Corporate OAS
+            'STLFSI4': 'STLFSI',           # St. Louis Fed Financial Stress Index
+            'VIXCLS': 'VIX'                # VIX Volatility Index
+        }
+
+        data_series = {}
+        for fred_code, name in series_config.items():
+            try:
+                series = fred.get_series(fred_code, observation_start=start_date, observation_end=end_date)
+                if series is not None and len(series) > 0:
+                    data_series[name] = series
+                    logger.info(f"Loaded {name}: {len(series)} data points")
+            except Exception as e:
+                logger.warning(f"Could not load {name}: {e}")
+
+        if not data_series:
+            raise ValueError("Could not load any FRED data series")
+
+        # DataFrame erstellen
+        df = pd.concat(data_series.values(), axis=1, keys=data_series.keys()).sort_index()
+        df = df.asfreq("B").ffill()
+
+        # Z-Scores berechnen (252 Tage Lookback)
+        lookback = 252
+
+        def rolling_z(x, lb=lookback):
+            rolling_mean = x.rolling(window=lb, min_periods=int(lb*0.8)).mean()
+            rolling_std = x.rolling(window=lb, min_periods=int(lb*0.8)).std()
+            z_score = (x - rolling_mean) / rolling_std
+            return z_score
+
+        for col in df.columns:
+            df[f"{col}_Z"] = rolling_z(df[col])
+            df[f"{col}_Z"] = df[f"{col}_Z"].clip(-3, 3)
+
+        # Daten bereinigen
+        z_cols = [col for col in df.columns if col.endswith('_Z')]
+        df = df.dropna(subset=z_cols, thresh=3)
+
+        if df.empty:
+            raise ValueError("Not enough data after Z-score calculation")
+
+        # Composite Score berechnen
+        base_weights = {
+            "HY_OAS_Z": 0.30,
+            "IG_OAS_Z": 0.20,
+            "STLFSI_Z": 0.25,
+            "VIX_Z": 0.25
+        }
+
+        def calculate_composite_flexible(row):
+            available_scores = {}
+            for col, weight in base_weights.items():
+                if col in row.index and pd.notna(row[col]):
+                    available_scores[col] = (row[col], weight)
+
+            if not available_scores:
+                return np.nan
+
+            total_weight = sum(weight for _, weight in available_scores.values())
+            normalized_composite = sum(score * (weight/total_weight)
+                                     for score, weight in available_scores.values())
+            return normalized_composite
+
+        df["Composite_Z"] = df.apply(calculate_composite_flexible, axis=1)
+        df = df.dropna(subset=["Composite_Z"])
+
+        # Regime klassifizieren
+        def classify_regime(row):
+            cs = row["Composite_Z"]
+            flags = 0
+            available_indicators = 0
+
+            for col in base_weights.keys():
+                if col in row.index and pd.notna(row[col]):
+                    available_indicators += 1
+                    threshold = 1.0 if 'STLFSI_Z' in col else 1.5
+                    if row[col] >= threshold:
+                        flags += 1
+
+            flag_ratio = flags / max(available_indicators, 1)
+
+            if cs >= 2.5:
+                return "ALERT"
+            elif cs >= 2.0 and flag_ratio >= 0.75:
+                return "ALERT"
+            elif cs >= 1.75:
+                return "WARNING"
+            elif flag_ratio >= 0.75 and cs >= 1.25:
+                return "WARNING"
+            elif cs >= 1.0:
+                return "WATCH"
+            elif flag_ratio >= 0.6 and cs >= 0.5:
+                return "WATCH"
+            else:
+                return "CALM"
+
+        df["Regime"] = df.apply(classify_regime, axis=1)
+        df["Regime_shift"] = df["Regime"].ne(df["Regime"].shift(1))
+
+        # Aktueller Zustand
+        latest = df.iloc[-1]
+        latest_date = latest.name
+
+        # Einzelkomponenten
+        components = {}
+        for col in base_weights.keys():
+            if col in df.columns:
+                last_valid_idx = df[col].last_valid_index()
+                if last_valid_idx:
+                    components[col.replace('_Z', '')] = {
+                        'value': float(df[col][last_valid_idx]),
+                        'date': last_valid_idx.strftime('%Y-%m-%d')
+                    }
+
+        # Letzte Alerts
+        alerts = df[df["Regime_shift"] & df["Regime"].isin(["WATCH", "WARNING", "ALERT"])]
+        alert_list = []
+        for idx in alerts.tail(10).index:
+            alert_list.append({
+                'date': idx.strftime('%Y-%m-%d'),
+                'composite_z': float(df.loc[idx, 'Composite_Z']),
+                'regime': df.loc[idx, 'Regime']
+            })
+
+        # Historische Daten für Chart (letzte 6 Monate)
+        recent_df = df.tail(130)
+        historical_data = []
+        for idx in recent_df.index:
+            historical_data.append({
+                'date': idx.strftime('%Y-%m-%d'),
+                'composite_z': float(recent_df.loc[idx, 'Composite_Z']) if pd.notna(recent_df.loc[idx, 'Composite_Z']) else None,
+                'regime': recent_df.loc[idx, 'Regime']
+            })
+
+        # Regime-Statistiken (letzte 12 Monate)
+        recent_stats = df.tail(252)
+        regime_counts = recent_stats["Regime"].value_counts()
+        total_days = len(recent_stats)
+
+        regime_distribution = {
+            'CALM': int(regime_counts.get('CALM', 0)),
+            'WATCH': int(regime_counts.get('WATCH', 0)),
+            'WARNING': int(regime_counts.get('WARNING', 0)),
+            'ALERT': int(regime_counts.get('ALERT', 0))
+        }
+
+        response = {
+            'status': 'success',
+            'timestamp': datetime.now().isoformat(),
+            'current_state': {
+                'date': latest_date.strftime('%Y-%m-%d'),
+                'composite_z': float(latest['Composite_Z']),
+                'regime': latest['Regime'],
+                'components': components
+            },
+            'alerts': alert_list,
+            'historical_data': historical_data,
+            'statistics': {
+                'regime_distribution': regime_distribution,
+                'total_days': total_days,
+                'composite_stats': {
+                    'mean': float(recent_stats['Composite_Z'].mean()),
+                    'std': float(recent_stats['Composite_Z'].std()),
+                    'max': float(recent_stats['Composite_Z'].max()),
+                    'min': float(recent_stats['Composite_Z'].min())
+                }
+            },
+            'thresholds': {
+                'CALM': '< 1.0',
+                'WATCH': '>= 1.0',
+                'WARNING': '>= 1.75',
+                'ALERT': '>= 2.5'
+            }
+        }
+
+        logger.info(f"Risk Radar analysis complete: {latest['Regime']} regime")
+        return response
+
+    except ImportError:
+        logger.error("fredapi not installed. Run: pip install fredapi")
+        raise HTTPException(
+            status_code=500,
+            detail="Risk Radar requires 'fredapi' package. Contact administrator."
+        )
+    except Exception as e:
+        logger.error(f"Error in Risk Radar: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Risk Radar analysis failed: {str(e)}")
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""

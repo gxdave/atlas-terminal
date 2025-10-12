@@ -817,6 +817,9 @@
             <div class="nav-item" onclick="switchView('analyzer')">
                 <span>Probability Analyzer</span>
             </div>
+            <div class="nav-item" onclick="switchView('riskradar')">
+                <span>Risk Radar</span>
+            </div>
             <div class="nav-item" onclick="switchView('news')">
                 <span>News</span>
             </div>
@@ -1018,6 +1021,82 @@
                 </div>
             </div>
 
+            <!-- Risk Radar View -->
+            <div class="view" id="riskradar">
+                <!-- Current Status Card -->
+                <div class="terminal-card">
+                    <div class="terminal-card-header">
+                        <h2>Market Stress Monitor</h2>
+                        <button class="btn btn-small" onclick="loadRiskRadar()" style="padding: 8px 16px;">REFRESH</button>
+                    </div>
+                    <div class="terminal-card-body">
+                        <div id="riskRadarLoading" class="loading" style="display: none;">
+                            <div class="spinner"></div>
+                            <p style="color: #888;">LOADING RISK RADAR DATA...</p>
+                        </div>
+
+                        <div id="riskRadarContent">
+                            <!-- Current Status -->
+                            <div class="stats-grid" id="currentStatus">
+                                <div class="stat-box">
+                                    <div class="stat-label">Current Regime</div>
+                                    <div class="stat-value" id="currentRegime">-</div>
+                                </div>
+                                <div class="stat-box">
+                                    <div class="stat-label">Composite Z-Score</div>
+                                    <div class="stat-value" id="compositeZ">-</div>
+                                </div>
+                                <div class="stat-box">
+                                    <div class="stat-label">Last Update</div>
+                                    <div class="stat-value" id="lastUpdate" style="font-size: 1.2rem;">-</div>
+                                </div>
+                            </div>
+
+                            <!-- Stress Indicators -->
+                            <div style="margin: 30px 0;">
+                                <h3 style="color: #f7931a; margin-bottom: 15px; font-size: 1rem; letter-spacing: 2px;">STRESS INDICATORS</h3>
+                                <div id="stressIndicators" class="stats-grid"></div>
+                            </div>
+
+                            <!-- Chart -->
+                            <div style="margin: 30px 0;">
+                                <h3 style="color: #f7931a; margin-bottom: 15px; font-size: 1rem; letter-spacing: 2px;">COMPOSITE Z-SCORE HISTORY (6 MONTHS)</h3>
+                                <canvas id="riskRadarChart" style="background: #000; border: 1px solid #333; padding: 20px;"></canvas>
+                            </div>
+
+                            <!-- Thresholds Info -->
+                            <div class="alert alert-info" id="thresholdsInfo">
+                                <strong>REGIME THRESHOLDS</strong><br>
+                                <span style="color: #d1e7dd;">CALM</span>: &lt; 1.0 |
+                                <span style="color: #fff3cd;">WATCH</span>: ≥ 1.0 |
+                                <span style="color: #f8d7da;">WARNING</span>: ≥ 1.75 |
+                                <span style="color: #f5c2c7;">ALERT</span>: ≥ 2.5
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Alerts -->
+                <div class="terminal-card">
+                    <div class="terminal-card-header">
+                        <h2>Recent Alerts</h2>
+                    </div>
+                    <div class="terminal-card-body">
+                        <div id="recentAlerts"></div>
+                    </div>
+                </div>
+
+                <!-- Regime Statistics -->
+                <div class="terminal-card">
+                    <div class="terminal-card-header">
+                        <h2>Regime Distribution (Last 12 Months)</h2>
+                    </div>
+                    <div class="terminal-card-body">
+                        <div id="regimeStats"></div>
+                    </div>
+                </div>
+            </div>
+
             <!-- News View -->
             <div class="view" id="news">
                 <div class="terminal-card">
@@ -1128,6 +1207,9 @@
 
     <!-- TradingView Widget Script -->
     <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+
+    <!-- Chart.js for Risk Radar -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
     <script>
         // Auto-detect API URL (localhost or Railway deployment)
@@ -1486,6 +1568,7 @@
             const titles = {
                 'dashboard': 'DASHBOARD',
                 'analyzer': 'PROBABILITY ANALYZER',
+                'riskradar': 'RISK RADAR',
                 'news': 'NEWS FEED',
                 'markets': 'MARKETS',
                 'economic': 'ECONOMIC DATA',
@@ -1497,6 +1580,12 @@
             // Load economic data when Economic view is opened
             if (viewName === 'economic' && document.getElementById('economicDataTable').innerHTML === '') {
                 loadEconomicData();
+            }
+
+            // Load risk radar when Risk Radar view is opened
+            if (viewName === 'riskradar' && !window.riskRadarLoaded) {
+                loadRiskRadar();
+                window.riskRadarLoaded = true;
             }
         }
 
@@ -1844,6 +1933,281 @@
             } finally {
                 economicLoading.style.display = 'none';
             }
+        }
+
+        // ============================================
+        // RISK RADAR FUNCTIONS
+        // ============================================
+
+        let riskRadarChart = null;
+
+        async function loadRiskRadar() {
+            const riskRadarLoading = document.getElementById('riskRadarLoading');
+            const riskRadarContent = document.getElementById('riskRadarContent');
+
+            riskRadarLoading.style.display = 'block';
+
+            try {
+                const response = await fetch(`${API_URL}/api/risk-radar`);
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    displayRiskRadarData(data);
+                } else {
+                    throw new Error('Risk Radar data unavailable');
+                }
+
+            } catch (error) {
+                console.error('Error loading Risk Radar:', error);
+                document.getElementById('currentStatus').innerHTML =
+                    '<div class="alert alert-error">FAILED TO LOAD RISK RADAR DATA</div>';
+            } finally {
+                riskRadarLoading.style.display = 'none';
+            }
+        }
+
+        function displayRiskRadarData(data) {
+            const { current_state, alerts, historical_data, statistics, thresholds } = data;
+
+            // Display current status
+            const regimeColors = {
+                'CALM': '#00ff00',
+                'WATCH': '#fff3cd',
+                'WARNING': '#ff6b6b',
+                'ALERT': '#ff0000'
+            };
+
+            document.getElementById('currentRegime').textContent = current_state.regime;
+            document.getElementById('currentRegime').style.color = regimeColors[current_state.regime] || '#f7931a';
+
+            document.getElementById('compositeZ').textContent = current_state.composite_z.toFixed(2);
+            const zColor = current_state.composite_z >= 2.5 ? '#ff0000' :
+                          current_state.composite_z >= 1.75 ? '#ff6b6b' :
+                          current_state.composite_z >= 1.0 ? '#fff3cd' : '#00ff00';
+            document.getElementById('compositeZ').style.color = zColor;
+
+            document.getElementById('lastUpdate').textContent = current_state.date;
+
+            // Display stress indicators
+            const stressIndicators = document.getElementById('stressIndicators');
+            stressIndicators.innerHTML = '';
+
+            for (const [key, value] of Object.entries(current_state.components)) {
+                const indicatorBox = document.createElement('div');
+                indicatorBox.className = 'stat-box';
+
+                const label = document.createElement('div');
+                label.className = 'stat-label';
+                label.textContent = key.replace('_', ' ');
+
+                const valueDiv = document.createElement('div');
+                valueDiv.className = 'stat-value';
+                valueDiv.style.fontSize = '1.5rem';
+                valueDiv.textContent = value.value.toFixed(2);
+
+                const color = value.value >= 1.5 ? '#ff0000' :
+                             value.value >= 1.0 ? '#ff6b6b' :
+                             value.value >= 0.5 ? '#fff3cd' : '#00ff00';
+                valueDiv.style.color = color;
+
+                indicatorBox.appendChild(label);
+                indicatorBox.appendChild(valueDiv);
+                stressIndicators.appendChild(indicatorBox);
+            }
+
+            // Display chart
+            displayRiskRadarChart(historical_data, thresholds);
+
+            // Display recent alerts
+            displayRecentAlerts(alerts);
+
+            // Display regime statistics
+            displayRegimeStats(statistics);
+        }
+
+        function displayRiskRadarChart(historicalData, thresholds) {
+            const ctx = document.getElementById('riskRadarChart');
+
+            if (!ctx) {
+                console.error('Chart canvas not found');
+                return;
+            }
+
+            // Destroy existing chart if any
+            if (riskRadarChart) {
+                riskRadarChart.destroy();
+            }
+
+            const labels = historicalData.map(d => d.date);
+            const compositeZData = historicalData.map(d => d.composite_z);
+
+            // Background colors based on regime
+            const backgroundColors = historicalData.map(d => {
+                switch(d.regime) {
+                    case 'ALERT': return 'rgba(255, 0, 0, 0.1)';
+                    case 'WARNING': return 'rgba(255, 107, 107, 0.1)';
+                    case 'WATCH': return 'rgba(255, 243, 205, 0.1)';
+                    default: return 'rgba(0, 255, 0, 0.05)';
+                }
+            });
+
+            riskRadarChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Composite Z-Score',
+                        data: compositeZData,
+                        borderColor: '#f7931a',
+                        backgroundColor: 'rgba(247, 147, 26, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.1,
+                        fill: true,
+                        pointRadius: 0,
+                        pointHoverRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 3,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: {
+                                color: '#f7931a',
+                                font: { family: 'Consolas, monospace' }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: '#0a0a0a',
+                            titleColor: '#f7931a',
+                            bodyColor: '#fff',
+                            borderColor: '#f7931a',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: '#888',
+                                maxTicksLimit: 10,
+                                font: { family: 'Consolas, monospace', size: 10 }
+                            },
+                            grid: { color: '#1a1a1a' }
+                        },
+                        y: {
+                            ticks: {
+                                color: '#888',
+                                font: { family: 'Consolas, monospace' }
+                            },
+                            grid: { color: '#1a1a1a' }
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                },
+                plugins: [{
+                    // Add threshold lines
+                    beforeDraw: (chart) => {
+                        const ctx = chart.ctx;
+                        const yAxis = chart.scales.y;
+                        const xAxis = chart.scales.x;
+
+                        // Draw threshold lines
+                        const thresholdLines = [
+                            { value: 1.0, color: '#fff3cd', label: 'WATCH' },
+                            { value: 1.75, color: '#ff6b6b', label: 'WARNING' },
+                            { value: 2.5, color: '#ff0000', label: 'ALERT' }
+                        ];
+
+                        thresholdLines.forEach(threshold => {
+                            const y = yAxis.getPixelForValue(threshold.value);
+
+                            ctx.save();
+                            ctx.strokeStyle = threshold.color;
+                            ctx.lineWidth = 1;
+                            ctx.setLineDash([5, 5]);
+                            ctx.beginPath();
+                            ctx.moveTo(xAxis.left, y);
+                            ctx.lineTo(xAxis.right, y);
+                            ctx.stroke();
+                            ctx.restore();
+                        });
+                    }
+                }]
+            });
+        }
+
+        function displayRecentAlerts(alerts) {
+            const recentAlerts = document.getElementById('recentAlerts');
+
+            if (!alerts || alerts.length === 0) {
+                recentAlerts.innerHTML = '<div class="alert alert-info">NO RECENT ALERTS</div>';
+                return;
+            }
+
+            let html = '<table class="economic-table"><thead><tr>';
+            html += '<th>Date</th><th>Regime</th><th>Composite Z-Score</th>';
+            html += '</tr></thead><tbody>';
+
+            alerts.forEach(alert => {
+                const regimeClass = alert.regime === 'ALERT' ? 'value-negative' :
+                                   alert.regime === 'WARNING' ? 'value-negative' :
+                                   'value-neutral';
+
+                html += `<tr>
+                    <td>${alert.date}</td>
+                    <td class="${regimeClass}" style="font-weight: bold;">${alert.regime}</td>
+                    <td class="value-neutral">${alert.composite_z.toFixed(2)}</td>
+                </tr>`;
+            });
+
+            html += '</tbody></table>';
+            recentAlerts.innerHTML = html;
+        }
+
+        function displayRegimeStats(statistics) {
+            const regimeStats = document.getElementById('regimeStats');
+            const { regime_distribution, total_days, composite_stats } = statistics;
+
+            let html = '<div class="stats-grid">';
+
+            const regimeColors = {
+                'CALM': '#00ff00',
+                'WATCH': '#fff3cd',
+                'WARNING': '#ff6b6b',
+                'ALERT': '#ff0000'
+            };
+
+            for (const [regime, count] of Object.entries(regime_distribution)) {
+                const percentage = ((count / total_days) * 100).toFixed(1);
+
+                html += `<div class="stat-box">
+                    <div class="stat-label">${regime}</div>
+                    <div class="stat-value" style="color: ${regimeColors[regime]}; font-size: 2rem;">
+                        ${count}
+                    </div>
+                    <div style="color: #888; font-size: 0.9rem; margin-top: 5px;">
+                        ${percentage}% of days
+                    </div>
+                </div>`;
+            }
+
+            html += '</div>';
+
+            html += '<div style="margin-top: 30px;">';
+            html += '<h3 style="color: #f7931a; margin-bottom: 15px; font-size: 1rem; letter-spacing: 2px;">COMPOSITE Z-SCORE STATISTICS</h3>';
+            html += '<div class="stats-grid">';
+            html += `<div class="stat-box"><div class="stat-label">Mean</div><div class="stat-value" style="font-size: 1.5rem;">${composite_stats.mean.toFixed(2)}</div></div>`;
+            html += `<div class="stat-box"><div class="stat-label">Std Dev</div><div class="stat-value" style="font-size: 1.5rem;">${composite_stats.std.toFixed(2)}</div></div>`;
+            html += `<div class="stat-box"><div class="stat-label">Maximum</div><div class="stat-value" style="font-size: 1.5rem;">${composite_stats.max.toFixed(2)}</div></div>`;
+            html += `<div class="stat-box"><div class="stat-label">Minimum</div><div class="stat-value" style="font-size: 1.5rem;">${composite_stats.min.toFixed(2)}</div></div>`;
+            html += '</div></div>';
+
+            regimeStats.innerHTML = html;
         }
     </script>
 </body>
