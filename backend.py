@@ -1837,6 +1837,15 @@ async def read_index():
     return FileResponse("index.html")
 
 if __name__ == "__main__":
+    # Auto-create admin user on Railway deployment
+    if os.environ.get("PORT"):
+        try:
+            import subprocess
+            logger.info("Checking for admin user initialization...")
+            subprocess.run([sys.executable, "init_admin.py"], check=False)
+        except Exception as e:
+            logger.warning(f"Admin init script failed: {e}")
+
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
