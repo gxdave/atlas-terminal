@@ -1816,6 +1816,11 @@ async def read_root():
     """Serve landing page"""
     return FileResponse("index.html")
 
+@app.get("/login.html")
+async def read_login():
+    """Serve login page"""
+    return FileResponse("login.html")
+
 @app.get("/terminal.html")
 async def read_terminal():
     """Serve terminal interface"""
