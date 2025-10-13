@@ -782,6 +782,35 @@ class ProbabilityAnalyzer:
 # Initialize authentication database
 init_database()
 
+# Auto-create admin user if none exists
+try:
+    from auth import get_user, create_user, UserCreate
+
+    if not get_user("admin"):
+        logger.info("No admin user found - creating default admin...")
+        admin_password = os.environ.get("ADMIN_PASSWORD", "Atlas2025!")
+
+        admin_user = create_user(UserCreate(
+            username="admin",
+            password=admin_password,
+            email="admin@atlas.com",
+            full_name="Admin User",
+            is_admin=True
+        ))
+
+        logger.info("=" * 60)
+        logger.info("  ATLAS TERMINAL - Admin User Created!")
+        logger.info("=" * 60)
+        logger.info(f"  Username: {admin_user.username}")
+        logger.info(f"  Password: {admin_password}")
+        logger.info("  Login at: /login.html")
+        logger.info("  IMPORTANT: Change this password after first login!")
+        logger.info("=" * 60)
+    else:
+        logger.info("Admin user already exists")
+except Exception as e:
+    logger.warning(f"Admin auto-creation failed: {e}")
+
 # API Endpoints
 
 # ============================================
