@@ -854,6 +854,15 @@
                     <span>LIVE</span>
                 </div>
                 <div class="header-info-item">
+                    <span id="currentUsername" style="color: #f7931a;">Loading...</span>
+                </div>
+                <div class="header-info-item" id="adminPanelLink" style="display: none;">
+                    <a href="./admin.html" style="color: #f7931a; text-decoration: none;">⚙️ Admin</a>
+                </div>
+                <div class="header-info-item">
+                    <button class="btn btn-small" onclick="logout()" style="padding: 6px 12px; font-size: 0.75rem;">Logout</button>
+                </div>
+                <div class="header-info-item">
                     <span id="currentTime">--:--:--</span>
                 </div>
             </div>
@@ -1221,9 +1230,71 @@
 
         let currentPattern = ['Bullish', 'Bearish'];
         let assets = {};
+        let currentUser = null;
+
+        // ============================================
+        // AUTHENTICATION CHECK
+        // ============================================
+        async function checkAuthentication() {
+            const token = localStorage.getItem('atlasToken');
+
+            if (!token) {
+                // No token - redirect to login
+                window.location.href = './login.html';
+                return false;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Authentication failed');
+                }
+
+                currentUser = await response.json();
+
+                // Update UI with user info
+                document.getElementById('currentUsername').textContent = currentUser.username;
+
+                // Show admin panel link if user is admin
+                if (currentUser.is_admin) {
+                    document.getElementById('adminPanelLink').style.display = 'flex';
+                }
+
+                return true;
+
+            } catch (error) {
+                console.error('Auth error:', error);
+                localStorage.removeItem('atlasToken');
+                localStorage.removeItem('atlasUsername');
+                window.location.href = './login.html';
+                return false;
+            }
+        }
+
+        // Logout function
+        function logout() {
+            if (confirm('Logout?')) {
+                localStorage.removeItem('atlasToken');
+                localStorage.removeItem('atlasUsername');
+                window.location.href = './login.html';
+            }
+        }
 
         // Initialize
         window.onload = async () => {
+            // Check authentication first
+            const isAuthenticated = await checkAuthentication();
+
+            if (!isAuthenticated) {
+                return; // Will redirect to login
+            }
+
+            // Continue normal initialization
             updateTime();
             setInterval(updateTime, 1000);
             await loadAssets();

@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATLAS TERMINAL - Admin Panel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Consolas', 'Courier New', monospace;
+            background: #000000;
+            color: #f7931a;
+            overflow-x: hidden;
+        }
+
+        /* Header */
+        .header {
+            background: #0a0a0a;
+            border-bottom: 2px solid #f7931a;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            color: #f7931a;
+            text-shadow: 0 0 10px #f7931a;
+            letter-spacing: 3px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 15px;
+        }
+
+        /* Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+
+        /* Card */
+        .card {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-left: 3px solid #f7931a;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        .card-header {
+            background: #1a1a1a;
+            padding: 15px 20px;
+            border-bottom: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-header h2 {
+            font-size: 1.1rem;
+            color: #f7931a;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .card-body {
+            padding: 25px;
+        }
+
+        /* Buttons */
+        .btn {
+            background: #f7931a;
+            color: #000;
+            border: 2px solid #f7931a;
+            padding: 12px 24px;
+            font-family: 'Consolas', monospace;
+            font-size: 0.9rem;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            background: transparent;
+            color: #f7931a;
+            box-shadow: 0 0 15px rgba(247, 147, 26, 0.5);
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 0.8rem;
+        }
+
+        .btn-danger {
+            background: #ff0000;
+            border-color: #ff0000;
+            color: #fff;
+        }
+
+        .btn-danger:hover {
+            background: transparent;
+            color: #ff0000;
+        }
+
+        /* Form */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #f7931a;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px;
+            background: #000;
+            border: 1px solid #333;
+            color: #f7931a;
+            font-family: 'Consolas', monospace;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #f7931a;
+            box-shadow: 0 0 10px rgba(247, 147, 26, 0.3);
+        }
+
+        /* Table */
+        .users-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .users-table th {
+            background: #1a1a1a;
+            color: #f7931a;
+            padding: 15px;
+            text-align: left;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.85rem;
+            border-bottom: 2px solid #f7931a;
+        }
+
+        .users-table td {
+            padding: 15px;
+            border-bottom: 1px solid #333;
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+
+        .users-table tr:hover {
+            background: #0f0f0f;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 3px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .badge-admin {
+            background: #f7931a;
+            color: #000;
+        }
+
+        .badge-user {
+            background: #333;
+            color: #888;
+        }
+
+        .badge-active {
+            background: rgba(0, 255, 0, 0.2);
+            color: #00ff00;
+            border: 1px solid #00ff00;
+        }
+
+        .badge-disabled {
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff0000;
+            border: 1px solid #ff0000;
+        }
+
+        /* Alert */
+        .alert {
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid;
+            display: none;
+        }
+
+        .alert.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        .alert-success {
+            background: rgba(0, 255, 0, 0.1);
+            border-color: #00ff00;
+            color: #00ff00;
+        }
+
+        .alert-error {
+            background: rgba(255, 0, 0, 0.1);
+            border-color: #ff0000;
+            color: #ff0000;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+
+        .spinner {
+            border: 4px solid #333;
+            border-top: 4px solid #f7931a;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #0a0a0a;
+            border: 2px solid #f7931a;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .modal-header {
+            font-size: 1.2rem;
+            color: #f7931a;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1>ATLAS ADMIN PANEL</h1>
+        <div class="header-actions">
+            <a href="./terminal.html" class="btn btn-small">← Terminal</a>
+            <button class="btn btn-small" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <div id="alertBox" class="alert"></div>
+
+        <!-- Create User Card -->
+        <div class="card">
+            <div class="card-header">
+                <h2>Create New User</h2>
+            </div>
+            <div class="card-body">
+                <form id="createUserForm">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="username">Username *</label>
+                            <input type="text" id="username" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="password">Password *</label>
+                            <input type="password" id="password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" id="email">
+                        </div>
+                        <div class="form-group">
+                            <label for="fullName">Full Name</label>
+                            <input type="text" id="fullName">
+                        </div>
+                        <div class="form-group">
+                            <label for="isAdmin">Role</label>
+                            <select id="isAdmin">
+                                <option value="false">Normal User</option>
+                                <option value="true">Admin</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn" id="createUserBtn">Create User</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Users List Card -->
+        <div class="card">
+            <div class="card-header">
+                <h2>All Users</h2>
+                <button class="btn btn-small" onclick="loadUsers()">🔄 Refresh</button>
+            </div>
+            <div class="card-body">
+                <div id="usersLoading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Loading users...</p>
+                </div>
+
+                <table class="users-table" id="usersTable">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Full Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody">
+                        <!-- Dynamic content -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal" id="deleteModal">
+        <div class="modal-content">
+            <div class="modal-header">Confirm Delete</div>
+            <p style="color: #aaa; margin-bottom: 20px;">
+                Are you sure you want to delete user <strong id="deleteUsername" style="color: #f7931a;"></strong>?
+            </p>
+            <div class="modal-actions">
+                <button class="btn btn-small" onclick="closeDeleteModal()">Cancel</button>
+                <button class="btn btn-small btn-danger" onclick="confirmDelete()">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://127.0.0.1:8000'
+            : window.location.origin;
+
+        let deleteTargetUsername = null;
+
+        // Check if user is admin
+        async function checkAdminAccess() {
+            const token = localStorage.getItem('atlasToken');
+
+            if (!token) {
+                window.location.href = './login.html';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Not authenticated');
+                }
+
+                const user = await response.json();
+
+                if (!user.is_admin) {
+                    showAlert('Access denied. Admin rights required.', 'error');
+                    setTimeout(() => {
+                        window.location.href = './terminal.html';
+                    }, 2000);
+                    return;
+                }
+
+                // User is admin, load users
+                loadUsers();
+
+            } catch (error) {
+                console.error('Auth error:', error);
+                localStorage.removeItem('atlasToken');
+                window.location.href = './login.html';
+            }
+        }
+
+        // Load all users
+        async function loadUsers() {
+            const token = localStorage.getItem('atlasToken');
+            const loading = document.getElementById('usersLoading');
+            const tbody = document.getElementById('usersTableBody');
+
+            loading.style.display = 'block';
+            tbody.innerHTML = '';
+
+            try {
+                const response = await fetch(`${API_URL}/api/admin/users`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) throw new Error('Failed to load users');
+
+                const users = await response.json();
+
+                if (users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #666;">No users found</td></tr>';
+                } else {
+                    users.forEach(user => {
+                        const row = document.createElement('tr');
+
+                        const roleClass = user.is_admin ? 'badge-admin' : 'badge-user';
+                        const roleText = user.is_admin ? 'Admin' : 'User';
+
+                        const statusClass = user.disabled ? 'badge-disabled' : 'badge-active';
+                        const statusText = user.disabled ? 'Disabled' : 'Active';
+
+                        row.innerHTML = `
+                            <td><strong style="color: #f7931a;">${user.username}</strong></td>
+                            <td>${user.full_name || '-'}</td>
+                            <td>${user.email || '-'}</td>
+                            <td><span class="badge ${roleClass}">${roleText}</span></td>
+                            <td><span class="badge ${statusClass}">${statusText}</span></td>
+                            <td>
+                                <button class="btn btn-small btn-danger" onclick="openDeleteModal('${user.username}')">
+                                    Delete
+                                </button>
+                            </td>
+                        `;
+
+                        tbody.appendChild(row);
+                    });
+                }
+
+            } catch (error) {
+                console.error('Error loading users:', error);
+                showAlert('Failed to load users: ' + error.message, 'error');
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #ff0000;">Error loading users</td></tr>';
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        // Create user
+        document.getElementById('createUserForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const token = localStorage.getItem('atlasToken');
+            const createUserBtn = document.getElementById('createUserBtn');
+
+            const userData = {
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value,
+                email: document.getElementById('email').value || null,
+                full_name: document.getElementById('fullName').value || null,
+                is_admin: document.getElementById('isAdmin').value === 'true'
+            };
+
+            createUserBtn.disabled = true;
+            createUserBtn.textContent = 'Creating...';
+
+            try {
+                const response = await fetch(`${API_URL}/api/auth/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(userData)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to create user');
+                }
+
+                const newUser = await response.json();
+
+                showAlert(`User "${newUser.username}" created successfully!`, 'success');
+
+                // Reset form
+                document.getElementById('createUserForm').reset();
+
+                // Reload users
+                loadUsers();
+
+            } catch (error) {
+                console.error('Error creating user:', error);
+                showAlert('Error: ' + error.message, 'error');
+            } finally {
+                createUserBtn.disabled = false;
+                createUserBtn.textContent = 'Create User';
+            }
+        });
+
+        // Delete user modal
+        function openDeleteModal(username) {
+            deleteTargetUsername = username;
+            document.getElementById('deleteUsername').textContent = username;
+            document.getElementById('deleteModal').classList.add('show');
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').classList.remove('show');
+            deleteTargetUsername = null;
+        }
+
+        async function confirmDelete() {
+            if (!deleteTargetUsername) return;
+
+            const token = localStorage.getItem('atlasToken');
+
+            try {
+                const response = await fetch(`${API_URL}/api/admin/users/${deleteTargetUsername}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to delete user');
+                }
+
+                showAlert(`User "${deleteTargetUsername}" deleted successfully!`, 'success');
+                closeDeleteModal();
+                loadUsers();
+
+            } catch (error) {
+                console.error('Error deleting user:', error);
+                showAlert('Error: ' + error.message, 'error');
+            }
+        }
+
+        // Logout
+        function logout() {
+            localStorage.removeItem('atlasToken');
+            localStorage.removeItem('atlasUsername');
+            window.location.href = './login.html';
+        }
+
+        // Show alert
+        function showAlert(message, type = 'success') {
+            const alertBox = document.getElementById('alertBox');
+            alertBox.textContent = message;
+            alertBox.className = `alert alert-${type} show`;
+
+            setTimeout(() => {
+                alertBox.classList.remove('show');
+            }, 5000);
+        }
+
+        // Initialize
+        window.onload = () => {
+            checkAdminAccess();
+        };
+    </script>
+</body>
+</html>

@@ -1826,6 +1826,11 @@ async def read_terminal():
     """Serve terminal interface"""
     return FileResponse("terminal.html")
 
+@app.get("/admin.html")
+async def read_admin():
+    """Serve admin panel"""
+    return FileResponse("admin.html")
+
 @app.get("/index.html")
 async def read_index():
     """Serve index page"""
