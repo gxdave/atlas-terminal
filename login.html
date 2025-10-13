@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATLAS TERMINAL - Login</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Consolas', 'Courier New', monospace;
+            background: #000000;
+            color: #f7931a;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .login-container {
+            background: #0a0a0a;
+            border: 2px solid #f7931a;
+            border-radius: 10px;
+            padding: 50px;
+            max-width: 450px;
+            width: 90%;
+            box-shadow: 0 0 40px rgba(247, 147, 26, 0.3);
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .logo h1 {
+            font-size: 2.5rem;
+            color: #f7931a;
+            text-shadow: 0 0 20px #f7931a;
+            letter-spacing: 5px;
+            margin-bottom: 10px;
+            animation: glow 2s ease-in-out infinite;
+        }
+
+        @keyframes glow {
+            0%, 100% { text-shadow: 0 0 20px #f7931a; }
+            50% { text-shadow: 0 0 40px #f7931a, 0 0 60px #f7931a; }
+        }
+
+        .logo p {
+            color: #888;
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #f7931a;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 15px;
+            background: #000;
+            border: 1px solid #333;
+            color: #f7931a;
+            font-family: 'Consolas', monospace;
+            font-size: 1rem;
+            transition: all 0.3s;
+            border-radius: 5px;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #f7931a;
+            box-shadow: 0 0 10px rgba(247, 147, 26, 0.3);
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 15px;
+            background: #f7931a;
+            color: #000;
+            border: 2px solid #f7931a;
+            font-family: 'Consolas', monospace;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.3s;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
+        .btn-login:hover {
+            background: transparent;
+            color: #f7931a;
+            box-shadow: 0 0 20px rgba(247, 147, 26, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .btn-login:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .alert.error {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid #ff0000;
+            color: #ff0000;
+        }
+
+        .alert.success {
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid #00ff00;
+            color: #00ff00;
+        }
+
+        .alert.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .loading {
+            text-align: center;
+            color: #888;
+            display: none;
+        }
+
+        .spinner {
+            border: 3px solid #333;
+            border-top: 3px solid #f7931a;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #666;
+            font-size: 0.75rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <h1>ATLAS</h1>
+            <p>Terminal Login</p>
+        </div>
+
+        <div id="alertBox" class="alert"></div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autocomplete="username">
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required autocomplete="current-password">
+            </div>
+
+            <button type="submit" class="btn-login" id="loginBtn">
+                Login
+            </button>
+        </form>
+
+        <div class="loading" id="loadingIndicator">
+            <div class="spinner"></div>
+            <p>Authenticating...</p>
+        </div>
+
+        <div class="footer">
+            © 2025 Atlas Terminal | All Rights Reserved
+        </div>
+    </div>
+
+    <script>
+        // Auto-detect API URL
+        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://127.0.0.1:8000'
+            : window.location.origin;
+
+        const loginForm = document.getElementById('loginForm');
+        const loginBtn = document.getElementById('loginBtn');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const alertBox = document.getElementById('alertBox');
+
+        function showAlert(message, type = 'error') {
+            alertBox.textContent = message;
+            alertBox.className = `alert ${type} show`;
+            setTimeout(() => {
+                alertBox.classList.remove('show');
+            }, 5000);
+        }
+
+        function hideAlert() {
+            alertBox.classList.remove('show');
+        }
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideAlert();
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            // Show loading
+            loginForm.style.display = 'none';
+            loadingIndicator.style.display = 'block';
+            loginBtn.disabled = true;
+
+            try {
+                const response = await fetch(`${API_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Store token
+                    localStorage.setItem('atlasToken', data.access_token);
+                    localStorage.setItem('atlasUsername', username);
+
+                    showAlert('Login successful! Redirecting...', 'success');
+
+                    // Redirect to terminal
+                    setTimeout(() => {
+                        window.location.href = './terminal.html';
+                    }, 1000);
+                } else {
+                    throw new Error(data.detail || 'Login failed');
+                }
+
+            } catch (error) {
+                console.error('Login error:', error);
+                showAlert(error.message || 'Login failed. Please try again.');
+                loginForm.style.display = 'block';
+                loadingIndicator.style.display = 'none';
+                loginBtn.disabled = false;
+            }
+        });
+
+        // Check if already logged in
+        window.onload = () => {
+            const token = localStorage.getItem('atlasToken');
+            if (token) {
+                // Verify token is still valid
+                fetch(`${API_URL}/api/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        // Token is valid, redirect to terminal
+                        window.location.href = './terminal.html';
+                    } else {
+                        // Token expired, clear it
+                        localStorage.removeItem('atlasToken');
+                        localStorage.removeItem('atlasUsername');
+                    }
+                })
+                .catch(() => {
+                    // Network error, just clear token
+                    localStorage.removeItem('atlasToken');
+                    localStorage.removeItem('atlasUsername');
+                });
+            }
+        };
+    </script>
+</body>
+</html>

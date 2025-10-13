@@ -3,7 +3,7 @@ Atlas Terminal Backend - FastAPI Integration
 Integriert den Probability Analyzer für das Atlas Terminal
 """
 
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -17,6 +17,17 @@ import logging
 from datetime import datetime, timedelta
 import sys
 import os
+import json
+import sqlite3
+
+# Import authentication module
+from auth import (
+    Token, User, UserCreate, UserLogin, TokenData,
+    authenticate_user, create_access_token, get_current_active_user,
+    get_current_admin_user, create_user, get_all_users, delete_user,
+    get_user_settings, update_user_settings, init_database,
+    ACCESS_TOKEN_EXPIRE_MINUTES, DB_PATH
+)
 
 # Add Prob_Analyzer path
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../Prob_Analyzer'))
@@ -768,7 +779,298 @@ class ProbabilityAnalyzer:
             'pattern_details': pattern_details
         }
 
+# Initialize authentication database
+init_database()
+
 # API Endpoints
+
+# ============================================
+# AUTHENTICATION ENDPOINTS
+# ============================================
+
+@app.post("/api/auth/login", response_model=Token)
+async def login(user_login: UserLogin):
+    """Login endpoint - returns JWT token"""
+    user = authenticate_user(user_login.username, user_login.password)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect username or password"
+        )
+
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/api/auth/me", response_model=User)
+async def read_users_me(current_user: User = Depends(get_current_active_user)):
+    """Get current logged in user"""
+    return current_user
+
+@app.post("/api/auth/register", response_model=User)
+async def register_user(
+    user_create: UserCreate,
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Register new user (admin only)"""
+    try:
+        user = create_user(user_create)
+        return user
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating user: {str(e)}")
+
+@app.get("/api/admin/users", response_model=List[User])
+async def list_users(current_admin: User = Depends(get_current_admin_user)):
+    """List all users (admin only)"""
+    return get_all_users()
+
+@app.delete("/api/admin/users/{username}")
+async def remove_user(
+    username: str,
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Delete user (admin only)"""
+    if username == current_admin.username:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+
+    try:
+        delete_user(username)
+        return {"message": f"User {username} deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================
+# USER WATCHLIST & SETTINGS ENDPOINTS
+# ============================================
+
+@app.get("/api/user/watchlist")
+async def get_user_watchlist(current_user: User = Depends(get_current_active_user)):
+    """Get user's watchlist"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT symbol, category, added_at
+        FROM watchlist
+        WHERE username = ?
+        ORDER BY added_at DESC
+    """, (current_user.username,))
+
+    watchlist = []
+    for row in cursor.fetchall():
+        watchlist.append({
+            "symbol": row[0],
+            "category": row[1],
+            "added_at": row[2]
+        })
+
+    conn.close()
+    return {"username": current_user.username, "watchlist": watchlist}
+
+@app.post("/api/user/watchlist")
+async def add_to_watchlist(
+    symbol: str,
+    category: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """Add asset to watchlist"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            INSERT INTO watchlist (username, symbol, category)
+            VALUES (?, ?, ?)
+        """, (current_user.username, symbol, category))
+
+        conn.commit()
+        return {"message": f"Added {symbol} to watchlist"}
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=400, detail="Symbol already in watchlist")
+    finally:
+        conn.close()
+
+@app.delete("/api/user/watchlist/{symbol}")
+async def remove_from_watchlist(
+    symbol: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """Remove asset from watchlist"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        DELETE FROM watchlist
+        WHERE username = ? AND symbol = ?
+    """, (current_user.username, symbol))
+
+    conn.commit()
+    conn.close()
+
+    return {"message": f"Removed {symbol} from watchlist"}
+
+@app.get("/api/user/settings")
+async def get_settings(current_user: User = Depends(get_current_active_user)):
+    """Get user settings"""
+    settings = get_user_settings(current_user.username)
+    return {"username": current_user.username, "settings": settings}
+
+@app.post("/api/user/settings")
+async def update_settings(
+    settings: dict,
+    current_user: User = Depends(get_current_active_user)
+):
+    """Update user settings"""
+    update_user_settings(current_user.username, settings)
+    return {"message": "Settings updated successfully"}
+
+# ============================================
+# USER WIDGETS MANAGEMENT
+# ============================================
+
+@app.get("/api/user/widgets")
+async def get_user_widgets(current_user: User = Depends(get_current_active_user)):
+    """Get user's dashboard widgets"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT id, widget_type, widget_config, position_x, position_y, width, height
+        FROM user_widgets
+        WHERE username = ?
+        ORDER BY id
+    """, (current_user.username,))
+
+    widgets = []
+    for row in cursor.fetchall():
+        config = json.loads(row[2]) if row[2] else {}
+        widgets.append({
+            "id": row[0],
+            "widget_type": row[1],
+            "widget_config": config,
+            "position_x": row[3],
+            "position_y": row[4],
+            "width": row[5],
+            "height": row[6]
+        })
+
+    conn.close()
+    return {"widgets": widgets}
+
+@app.post("/api/user/widgets")
+async def add_widget(
+    widget_type: str,
+    widget_config: dict,
+    position_x: int = 0,
+    position_y: int = 0,
+    width: int = 400,
+    height: int = 300,
+    current_user: User = Depends(get_current_active_user)
+):
+    """Add widget to user's dashboard"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO user_widgets
+        (username, widget_type, widget_config, position_x, position_y, width, height)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        current_user.username,
+        widget_type,
+        json.dumps(widget_config),
+        position_x,
+        position_y,
+        width,
+        height
+    ))
+
+    widget_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    return {"message": "Widget added successfully", "widget_id": widget_id}
+
+@app.put("/api/user/widgets/{widget_id}")
+async def update_widget(
+    widget_id: int,
+    widget_config: Optional[dict] = None,
+    position_x: Optional[int] = None,
+    position_y: Optional[int] = None,
+    width: Optional[int] = None,
+    height: Optional[int] = None,
+    current_user: User = Depends(get_current_active_user)
+):
+    """Update widget configuration"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    updates = []
+    params = []
+
+    if widget_config is not None:
+        updates.append("widget_config = ?")
+        params.append(json.dumps(widget_config))
+
+    if position_x is not None:
+        updates.append("position_x = ?")
+        params.append(position_x)
+
+    if position_y is not None:
+        updates.append("position_y = ?")
+        params.append(position_y)
+
+    if width is not None:
+        updates.append("width = ?")
+        params.append(width)
+
+    if height is not None:
+        updates.append("height = ?")
+        params.append(height)
+
+    if not updates:
+        raise HTTPException(status_code=400, detail="No updates provided")
+
+    params.extend([current_user.username, widget_id])
+
+    cursor.execute(f"""
+        UPDATE user_widgets
+        SET {', '.join(updates)}
+        WHERE username = ? AND id = ?
+    """, params)
+
+    conn.commit()
+    conn.close()
+
+    return {"message": "Widget updated successfully"}
+
+@app.delete("/api/user/widgets/{widget_id}")
+async def delete_widget(
+    widget_id: int,
+    current_user: User = Depends(get_current_active_user)
+):
+    """Delete widget from dashboard"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        DELETE FROM user_widgets
+        WHERE username = ? AND id = ?
+    """, (current_user.username, widget_id))
+
+    conn.commit()
+    conn.close()
+
+    return {"message": "Widget deleted successfully"}
+
+# ============================================
+# EXISTING ENDPOINTS
+# ============================================
 
 @app.get("/")
 async def root():
@@ -776,9 +1078,13 @@ async def root():
         "message": "Atlas Terminal API v1.1.1",
         "status": "running",
         "endpoints": [
+            "/api/auth/login",
+            "/api/auth/me",
             "/api/assets",
             "/api/timeframes",
-            "/api/analyze"
+            "/api/analyze",
+            "/api/user/watchlist",
+            "/api/user/widgets"
         ]
     }
 
