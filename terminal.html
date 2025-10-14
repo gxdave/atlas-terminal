@@ -872,90 +872,61 @@
         <div class="content-area">
             <!-- Dashboard View -->
             <div class="view active" id="dashboard">
-                <div class="market-ticker">
-                    <div class="ticker-item">
-                        <span class="ticker-symbol">EUR/USD</span>
-                        <span class="ticker-price">1.0892</span>
-                        <span class="ticker-change positive">+0.23%</span>
+                <!-- Dashboard Toolbar -->
+                <div class="terminal-card" style="margin-bottom: 20px;">
+                    <div class="terminal-card-header">
+                        <h2>Dashboard Controls</h2>
                     </div>
-                    <div class="ticker-item">
-                        <span class="ticker-symbol">S&P 500</span>
-                        <span class="ticker-price">4,789.32</span>
-                        <span class="ticker-change negative">-0.15%</span>
-                    </div>
-                    <div class="ticker-item">
-                        <span class="ticker-symbol">GOLD</span>
-                        <span class="ticker-price">2,034.50</span>
-                        <span class="ticker-change positive">+0.67%</span>
-                    </div>
-                    <div class="ticker-item">
-                        <span class="ticker-symbol">BTC</span>
-                        <span class="ticker-price">43,521.00</span>
-                        <span class="ticker-change positive">+2.34%</span>
+                    <div class="terminal-card-body">
+                        <div class="btn-group">
+                            <button class="btn btn-small" onclick="openAddAssetModal()">+ ADD ASSET TO WATCHLIST</button>
+                            <button class="btn btn-small" onclick="openAddWidgetModal()">+ ADD WIDGET</button>
+                            <button class="btn btn-small" onclick="refreshWatchlist()">REFRESH WATCHLIST</button>
+                        </div>
                     </div>
                 </div>
 
-                <div class="dashboard-grid">
-                    <div class="dashboard-widget">
-                        <div class="widget-title">Quick Stats</div>
-                        <div class="widget-content">
-                            <div style="margin: 10px 0;">
-                                <strong style="color: #f7931a;">Total Analyses:</strong> 156
-                            </div>
-                            <div style="margin: 10px 0;">
-                                <strong style="color: #f7931a;">Success Rate:</strong> 68.5%
-                            </div>
-                            <div style="margin: 10px 0;">
-                                <strong style="color: #f7931a;">Active Patterns:</strong> 12
-                            </div>
-                        </div>
+                <!-- Watchlist Section -->
+                <div class="terminal-card" style="margin-bottom: 20px;">
+                    <div class="terminal-card-header">
+                        <h2>My Watchlist</h2>
                     </div>
-
-                    <div class="dashboard-widget">
-                        <div class="widget-title">System Status</div>
-                        <div class="widget-content">
-                            <div style="margin: 10px 0;">
-                                <strong style="color: #00ff00;">API Status:</strong> Online
-                            </div>
-                            <div style="margin: 10px 0;">
-                                <strong style="color: #00ff00;">Data Feed:</strong> Connected
-                            </div>
-                            <div style="margin: 10px 0;">
-                                <strong style="color: #f7931a;">Last Update:</strong> 2s ago
-                            </div>
+                    <div class="terminal-card-body">
+                        <div id="watchlistLoading" class="loading" style="display: none;">
+                            <div class="spinner"></div>
+                            <p style="color: #888;">LOADING WATCHLIST...</p>
                         </div>
-                    </div>
-
-                    <div class="dashboard-widget">
-                        <div class="widget-title">Recent Activity</div>
-                        <div class="widget-content">
-                            <div style="margin: 10px 0; font-size: 0.8rem;">
-                                - EUR/USD pattern analyzed
-                            </div>
-                            <div style="margin: 10px 0; font-size: 0.8rem;">
-                                - Market data updated
-                            </div>
-                            <div style="margin: 10px 0; font-size: 0.8rem;">
-                                - New pattern detected
+                        <div class="market-ticker" id="watchlistTicker">
+                            <div style="color: #666; padding: 20px; text-align: center; width: 100%;">
+                                Your watchlist is empty. Click "ADD ASSET TO WATCHLIST" to get started.
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="terminal-card">
+                <!-- Dashboard Widgets Grid -->
+                <div id="dashboardWidgets" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                    <!-- Dynamic widgets will be inserted here -->
+                </div>
+
+                <!-- Getting Started Card -->
+                <div class="terminal-card" id="gettingStartedCard">
                     <div class="terminal-card-header">
                         <h2>Getting Started</h2>
+                        <button class="btn btn-small" onclick="dismissGettingStarted()" style="padding: 6px 12px;">DISMISS</button>
                     </div>
                     <div class="terminal-card-body">
                         <p style="color: #888; line-height: 1.8;">
                             Welcome to <strong style="color: #f7931a;">ATLAS TERMINAL</strong>.
                             This is your professional-grade financial analysis platform.
-                            Use the sidebar to navigate between different tools and features.
                         </p>
                         <br>
                         <p style="color: #888; line-height: 1.8;">
-                            Start by exploring the <strong style="color: #f7931a;">Probability Analyzer</strong>
-                            to analyze candlestick patterns with historical data.
+                            <strong style="color: #f7931a;">Quick Start:</strong><br>
+                            1. Click <strong style="color: #f7931a;">"+ ADD ASSET TO WATCHLIST"</strong> to monitor your favorite assets<br>
+                            2. Click <strong style="color: #f7931a;">"+ ADD WIDGET"</strong> to customize your dashboard (News, Risk Radar, Charts)<br>
+                            3. Explore <strong style="color: #f7931a;">Probability Analyzer</strong> to analyze candlestick patterns<br>
+                            4. Use the sidebar to navigate between different tools
                         </p>
                     </div>
                 </div>
@@ -1211,6 +1182,71 @@
                     <p>Coming Soon</p>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Add Asset Modal -->
+    <div class="modal" id="addAssetModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                ADD ASSET TO WATCHLIST
+            </div>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="modalCategory">Category</label>
+                    <select id="modalCategory" onchange="updateModalAssetList()">
+                        <option value="">Loading...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="modalSymbol">Symbol</label>
+                    <select id="modalSymbol">
+                        <option value="">Select category first</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="btn-group" style="margin-top: 20px;">
+                <button class="btn" onclick="addAssetToWatchlist()">ADD TO WATCHLIST</button>
+                <button class="btn" onclick="closeAddAssetModal()">CANCEL</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Widget Modal -->
+    <div class="modal" id="addWidgetModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                ADD WIDGET TO DASHBOARD
+            </div>
+
+            <p style="color: #888; margin-bottom: 20px;">Select a widget type to add to your dashboard:</p>
+
+            <div class="symbol-grid">
+                <div class="symbol-card" onclick="addWidget('news')">
+                    <div class="symbol-card-name">NEWS FEED</div>
+                    <div class="symbol-card-symbol">Latest market news</div>
+                </div>
+                <div class="symbol-card" onclick="addWidget('risk_radar')">
+                    <div class="symbol-card-name">RISK RADAR</div>
+                    <div class="symbol-card-symbol">Market stress monitor</div>
+                </div>
+                <div class="symbol-card" onclick="addWidget('chart')">
+                    <div class="symbol-card-name">CHART</div>
+                    <div class="symbol-card-symbol">TradingView chart</div>
+                </div>
+                <div class="symbol-card" onclick="addWidget('economic')">
+                    <div class="symbol-card-name">ECONOMIC DATA</div>
+                    <div class="symbol-card-symbol">Key indicators</div>
+                </div>
+                <div class="symbol-card" onclick="addWidget('analyzer')">
+                    <div class="symbol-card-name">QUICK ANALYZER</div>
+                    <div class="symbol-card-symbol">Pattern analysis</div>
+                </div>
+            </div>
+
+            <button class="btn" onclick="closeAddWidgetModal()" style="width: 100%; margin-top: 20px;">CANCEL</button>
         </div>
     </div>
 
@@ -2279,6 +2315,368 @@
             html += '</div></div>';
 
             regimeStats.innerHTML = html;
+        }
+
+        // ============================================
+        // DASHBOARD CUSTOMIZATION FUNCTIONS
+        // ============================================
+
+        // Modal functions
+        function openAddAssetModal() {
+            const modal = document.getElementById('addAssetModal');
+            const modalCategory = document.getElementById('modalCategory');
+
+            // Populate category dropdown with assets
+            modalCategory.innerHTML = '<option value="">SELECT CATEGORY</option>';
+            Object.keys(assets).forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category.toUpperCase();
+                modalCategory.appendChild(option);
+            });
+
+            modal.classList.add('active');
+        }
+
+        function closeAddAssetModal() {
+            document.getElementById('addAssetModal').classList.remove('active');
+        }
+
+        function updateModalAssetList() {
+            const category = document.getElementById('modalCategory').value;
+            const modalSymbol = document.getElementById('modalSymbol');
+
+            if (!category) {
+                modalSymbol.innerHTML = '<option value="">SELECT CATEGORY FIRST</option>';
+                return;
+            }
+
+            modalSymbol.innerHTML = '<option value="">SELECT SYMBOL</option>';
+            Object.entries(assets[category]).forEach(([symbol, name]) => {
+                const option = document.createElement('option');
+                option.value = symbol;
+                option.textContent = `${name} (${symbol})`;
+                modalSymbol.appendChild(option);
+            });
+        }
+
+        async function addAssetToWatchlist() {
+            const symbol = document.getElementById('modalSymbol').value;
+            const category = document.getElementById('modalCategory').value;
+
+            if (!symbol || !category) {
+                alert('Please select category and symbol');
+                return;
+            }
+
+            const token = localStorage.getItem('atlasToken');
+
+            try {
+                const response = await fetch(`${API_URL}/api/user/watchlist`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ symbol, category })
+                });
+
+                if (response.ok) {
+                    closeAddAssetModal();
+                    refreshWatchlist();
+                } else {
+                    const error = await response.json();
+                    alert('Failed to add asset: ' + (error.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error adding asset:', error);
+                alert('Failed to add asset');
+            }
+        }
+
+        async function removeFromWatchlist(symbol) {
+            if (!confirm(`Remove ${symbol} from watchlist?`)) return;
+
+            const token = localStorage.getItem('atlasToken');
+
+            try {
+                const response = await fetch(`${API_URL}/api/user/watchlist/${symbol}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    refreshWatchlist();
+                } else {
+                    alert('Failed to remove asset');
+                }
+            } catch (error) {
+                console.error('Error removing asset:', error);
+            }
+        }
+
+        async function refreshWatchlist() {
+            const watchlistLoading = document.getElementById('watchlistLoading');
+            const watchlistTicker = document.getElementById('watchlistTicker');
+            const token = localStorage.getItem('atlasToken');
+
+            watchlistLoading.style.display = 'block';
+
+            try {
+                const response = await fetch(`${API_URL}/api/user/watchlist`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const watchlist = await response.json();
+
+                if (watchlist.length === 0) {
+                    watchlistTicker.innerHTML = `
+                        <div style="color: #666; padding: 20px; text-align: center; width: 100%;">
+                            Your watchlist is empty. Click "ADD ASSET TO WATCHLIST" to get started.
+                        </div>
+                    `;
+                } else {
+                    watchlistTicker.innerHTML = watchlist.map(item => `
+                        <div class="ticker-item">
+                            <div class="ticker-symbol">${item.symbol}</div>
+                            <div class="ticker-price">$--</div>
+                            <div class="ticker-change">Loading...</div>
+                            <button class="btn btn-small" onclick="removeFromWatchlist('${item.symbol}')"
+                                style="margin-top: 5px; padding: 4px 8px; font-size: 0.7rem;">REMOVE</button>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading watchlist:', error);
+                watchlistTicker.innerHTML = '<div class="alert alert-error">FAILED TO LOAD WATCHLIST</div>';
+            } finally {
+                watchlistLoading.style.display = 'none';
+            }
+        }
+
+        // Widget functions
+        function openAddWidgetModal() {
+            document.getElementById('addWidgetModal').classList.add('active');
+        }
+
+        function closeAddWidgetModal() {
+            document.getElementById('addWidgetModal').classList.remove('active');
+        }
+
+        let widgetIdCounter = 0;
+
+        async function addWidget(widgetType) {
+            closeAddWidgetModal();
+
+            const widgetId = `widget_${widgetIdCounter++}`;
+            const widgetsContainer = document.getElementById('dashboardWidgets');
+
+            const widgetCard = document.createElement('div');
+            widgetCard.className = 'terminal-card';
+            widgetCard.id = widgetId;
+            widgetCard.style.minHeight = '300px';
+
+            let widgetContent = '';
+
+            switch(widgetType) {
+                case 'news':
+                    widgetContent = `
+                        <div class="terminal-card-header">
+                            <h2>NEWS FEED</h2>
+                            <button class="btn btn-small" onclick="removeWidget('${widgetId}')" style="padding: 6px 12px;">REMOVE</button>
+                        </div>
+                        <div class="terminal-card-body">
+                            <div id="${widgetId}_content" style="max-height: 400px; overflow-y: auto;">
+                                <div class="loading"><div class="spinner"></div><p>Loading news...</p></div>
+                            </div>
+                        </div>
+                    `;
+                    break;
+
+                case 'risk_radar':
+                    widgetContent = `
+                        <div class="terminal-card-header">
+                            <h2>RISK RADAR</h2>
+                            <button class="btn btn-small" onclick="removeWidget('${widgetId}')" style="padding: 6px 12px;">REMOVE</button>
+                        </div>
+                        <div class="terminal-card-body">
+                            <div id="${widgetId}_content">
+                                <div class="loading"><div class="spinner"></div><p>Loading risk data...</p></div>
+                            </div>
+                        </div>
+                    `;
+                    break;
+
+                case 'chart':
+                    widgetContent = `
+                        <div class="terminal-card-header">
+                            <h2>CHART</h2>
+                            <button class="btn btn-small" onclick="removeWidget('${widgetId}')" style="padding: 6px 12px;">REMOVE</button>
+                        </div>
+                        <div class="terminal-card-body">
+                            <div id="${widgetId}_content" style="height: 400px;">
+                                <div class="loading"><div class="spinner"></div><p>Loading chart...</p></div>
+                            </div>
+                        </div>
+                    `;
+                    break;
+
+                case 'economic':
+                    widgetContent = `
+                        <div class="terminal-card-header">
+                            <h2>ECONOMIC DATA</h2>
+                            <button class="btn btn-small" onclick="removeWidget('${widgetId}')" style="padding: 6px 12px;">REMOVE</button>
+                        </div>
+                        <div class="terminal-card-body">
+                            <div id="${widgetId}_content">
+                                <div class="loading"><div class="spinner"></div><p>Loading economic data...</p></div>
+                            </div>
+                        </div>
+                    `;
+                    break;
+
+                case 'analyzer':
+                    widgetContent = `
+                        <div class="terminal-card-header">
+                            <h2>QUICK ANALYZER</h2>
+                            <button class="btn btn-small" onclick="removeWidget('${widgetId}')" style="padding: 6px 12px;">REMOVE</button>
+                        </div>
+                        <div class="terminal-card-body">
+                            <div id="${widgetId}_content">
+                                <p style="color: #888;">Quick pattern analysis coming soon...</p>
+                            </div>
+                        </div>
+                    `;
+                    break;
+            }
+
+            widgetCard.innerHTML = widgetContent;
+            widgetsContainer.appendChild(widgetCard);
+
+            // Load widget data
+            loadWidgetData(widgetId, widgetType);
+        }
+
+        async function loadWidgetData(widgetId, widgetType) {
+            const contentDiv = document.getElementById(`${widgetId}_content`);
+
+            try {
+                switch(widgetType) {
+                    case 'news':
+                        const newsResponse = await fetch(`${API_URL}/api/news`);
+                        const newsData = await newsResponse.json();
+
+                        if (newsData.articles && newsData.articles.length > 0) {
+                            contentDiv.innerHTML = newsData.articles.slice(0, 3).map(article => `
+                                <div class="news-article" style="margin-bottom: 10px; padding: 12px;">
+                                    <div class="news-source">${article.source.name}</div>
+                                    <div class="news-title" style="font-size: 0.95rem;">${article.title}</div>
+                                    <div class="news-meta" style="margin-top: 8px;">
+                                        <span>${getTimeAgo(new Date(article.publishedAt))}</span>
+                                        ${article.url !== '#' ? `<a href="${article.url}" target="_blank" style="color: #f7931a;">READ</a>` : ''}
+                                    </div>
+                                </div>
+                            `).join('');
+                        } else {
+                            contentDiv.innerHTML = '<p style="color: #888;">No news available</p>';
+                        }
+                        break;
+
+                    case 'risk_radar':
+                        const riskResponse = await fetch(`${API_URL}/api/risk-radar`);
+                        const riskData = await riskResponse.json();
+
+                        if (riskData.status === 'success') {
+                            const regime = riskData.current_state.regime;
+                            const zScore = riskData.current_state.composite_z.toFixed(2);
+                            const regimeColor = regime === 'CALM' ? '#00ff00' :
+                                              regime === 'WATCH' ? '#fff3cd' :
+                                              regime === 'WARNING' ? '#ff6b6b' : '#ff0000';
+
+                            contentDiv.innerHTML = `
+                                <div class="stats-grid">
+                                    <div class="stat-box">
+                                        <div class="stat-label">REGIME</div>
+                                        <div class="stat-value" style="color: ${regimeColor}; font-size: 1.5rem;">${regime}</div>
+                                    </div>
+                                    <div class="stat-box">
+                                        <div class="stat-label">Z-SCORE</div>
+                                        <div class="stat-value" style="font-size: 1.5rem;">${zScore}</div>
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            contentDiv.innerHTML = '<p style="color: #888;">Risk data unavailable</p>';
+                        }
+                        break;
+
+                    case 'chart':
+                        contentDiv.innerHTML = `<div id="tradingview_${widgetId}" style="width: 100%; height: 100%;"></div>`;
+                        setTimeout(() => {
+                            new TradingView.widget({
+                                "width": "100%",
+                                "height": "100%",
+                                "symbol": "BITSTAMP:BTCUSD",
+                                "interval": "D",
+                                "timezone": "Etc/UTC",
+                                "theme": "dark",
+                                "style": "1",
+                                "locale": "en",
+                                "toolbar_bg": "#000000",
+                                "enable_publishing": false,
+                                "container_id": `tradingview_${widgetId}`,
+                                "backgroundColor": "#000000"
+                            });
+                        }, 100);
+                        break;
+
+                    case 'economic':
+                        const econResponse = await fetch(`${API_URL}/api/economic/USA`);
+                        const econData = await econResponse.json();
+
+                        if (econData.indicators && econData.indicators.length > 0) {
+                            contentDiv.innerHTML = `
+                                <table class="economic-table">
+                                    <thead><tr><th>Indicator</th><th>Value</th></tr></thead>
+                                    <tbody>
+                                        ${econData.indicators.slice(0, 5).map(ind => `
+                                            <tr>
+                                                <td class="indicator-name">${ind.name}</td>
+                                                <td>${ind.current}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            `;
+                        } else {
+                            contentDiv.innerHTML = '<p style="color: #888;">No economic data available</p>';
+                        }
+                        break;
+                }
+            } catch (error) {
+                console.error(`Error loading widget data for ${widgetType}:`, error);
+                contentDiv.innerHTML = '<div class="alert alert-error">Failed to load data</div>';
+            }
+        }
+
+        function removeWidget(widgetId) {
+            if (confirm('Remove this widget?')) {
+                const widget = document.getElementById(widgetId);
+                if (widget) widget.remove();
+            }
+        }
+
+        function dismissGettingStarted() {
+            const card = document.getElementById('gettingStartedCard');
+            if (card) {
+                card.style.display = 'none';
+                localStorage.setItem('atlasGettingStartedDismissed', 'true');
+            }
+        }
+
+        // Load watchlist on dashboard load
+        if (document.getElementById('dashboard').classList.contains('active')) {
+            refreshWatchlist();
         }
     </script>
 </body>
