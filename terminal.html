@@ -2372,13 +2372,11 @@
             const token = localStorage.getItem('atlasToken');
 
             try {
-                const response = await fetch(`${API_URL}/api/user/watchlist`, {
+                const response = await fetch(`${API_URL}/api/user/watchlist?symbol=${encodeURIComponent(symbol)}&category=${encodeURIComponent(category)}`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ symbol, category })
+                    }
                 });
 
                 if (response.ok) {
@@ -2386,7 +2384,8 @@
                     refreshWatchlist();
                 } else {
                     const error = await response.json();
-                    alert('Failed to add asset: ' + (error.detail || 'Unknown error'));
+                    const errorMsg = Array.isArray(error.detail) ? error.detail[0].msg : error.detail;
+                    alert('Failed to add asset: ' + (errorMsg || 'Unknown error'));
                 }
             } catch (error) {
                 console.error('Error adding asset:', error);
