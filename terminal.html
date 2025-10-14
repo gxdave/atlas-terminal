@@ -2426,7 +2426,8 @@
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
-                const watchlist = await response.json();
+                const data = await response.json();
+                const watchlist = data.watchlist || [];
 
                 if (watchlist.length === 0) {
                     watchlistTicker.innerHTML = `
