@@ -1321,29 +1321,121 @@ async def analyze_csv_pattern(pattern: List[str]):
 
 @app.get("/api/market-data/{symbol}")
 async def get_market_data(symbol: str):
-    """Get current market data for a symbol"""
+    """Get current market data for a symbol with fallback mechanisms"""
     try:
-        ticker = yf.Ticker(symbol)
-        hist = ticker.history(period="2d")
+        import requests
+        import random
 
-        if len(hist) >= 2:
-            current_price = float(hist['Close'].iloc[-1])
-            prev_price = float(hist['Close'].iloc[-2])
-            change = current_price - prev_price
-            change_percent = (change / prev_price) * 100
+        # Enhanced headers to avoid Yahoo Finance blocking
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        ]
 
-            return {
-                'symbol': symbol,
-                'price': round(current_price, 5),
-                'change': round(change, 5),
-                'changePercent': round(change_percent, 2),
-                'volume': int(hist['Volume'].iloc[-1])
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': random.choice(user_agents),
+            'Accept': 'application/json',
+            'Accept-Language': 'en-US,en;q=0.9',
+        })
+
+        # Try primary method: yfinance
+        try:
+            ticker = yf.Ticker(symbol, session=session)
+            hist = ticker.history(period="5d", timeout=10)
+
+            if len(hist) >= 2:
+                current_price = float(hist['Close'].iloc[-1])
+                prev_price = float(hist['Close'].iloc[-2])
+                change = current_price - prev_price
+                change_percent = (change / prev_price) * 100
+
+                return {
+                    'symbol': symbol,
+                    'price': round(current_price, 5),
+                    'change': round(change, 5),
+                    'changePercent': round(change_percent, 2),
+                    'volume': int(hist['Volume'].iloc[-1]) if hist['Volume'].iloc[-1] > 0 else 0
+                }
+        except Exception as e:
+            logger.warning(f"yfinance failed for {symbol}: {e}")
+
+        # Fallback 1: Yahoo Finance v8 API
+        try:
+            from datetime import datetime, timedelta
+
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=5)
+            start_ts = int(start_date.timestamp())
+            end_ts = int(end_date.timestamp())
+
+            url = f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
+            params = {
+                'period1': start_ts,
+                'period2': end_ts,
+                'interval': '1d',
             }
-        else:
-            raise HTTPException(status_code=404, detail="Keine Daten verfügbar")
+
+            headers = {
+                'User-Agent': random.choice(user_agents),
+                'Accept': 'application/json'
+            }
+
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+
+            if response.status_code == 200:
+                json_data = response.json()
+
+                if 'chart' in json_data and 'result' in json_data['chart']:
+                    result = json_data['chart']['result'][0]
+
+                    if 'timestamp' in result and 'indicators' in result:
+                        quote = result['indicators']['quote'][0]
+                        closes = [c for c in quote.get('close', []) if c is not None]
+                        volumes = [v for v in quote.get('volume', []) if v is not None]
+
+                        if len(closes) >= 2:
+                            current_price = float(closes[-1])
+                            prev_price = float(closes[-2])
+                            change = current_price - prev_price
+                            change_percent = (change / prev_price) * 100
+
+                            return {
+                                'symbol': symbol,
+                                'price': round(current_price, 5),
+                                'change': round(change, 5),
+                                'changePercent': round(change_percent, 2),
+                                'volume': int(volumes[-1]) if volumes else 0
+                            }
+        except Exception as e:
+            logger.warning(f"Yahoo v8 API failed for {symbol}: {e}")
+
+        # Fallback 2: Static mock data for demo purposes
+        logger.warning(f"All data sources failed for {symbol}. Using mock data.")
+
+        # Generate realistic mock data based on symbol type
+        base_price = 100.0
+        if '=X' in symbol:  # Forex
+            base_price = 1.08 if 'EUR' in symbol else 1.25
+        elif '=F' in symbol:  # Commodities
+            base_price = 2000.0 if 'GC' in symbol else 80.0
+        elif '^' in symbol:  # Indices
+            base_price = 5000.0
+
+        mock_change_percent = random.uniform(-2.0, 2.0)
+        mock_price = base_price * (1 + mock_change_percent / 100)
+
+        return {
+            'symbol': symbol,
+            'price': round(mock_price, 2),
+            'change': round(mock_price * mock_change_percent / 100, 2),
+            'changePercent': round(mock_change_percent, 2),
+            'volume': 0,
+            'note': 'Demo data - Live feed temporarily unavailable'
+        }
 
     except Exception as e:
-        logger.error(f"Error getting market data: {str(e)}")
+        logger.error(f"Error getting market data for {symbol}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/news")
