@@ -2436,21 +2436,61 @@
                         </div>
                     `;
                 } else {
-                    watchlistTicker.innerHTML = watchlist.map(item => `
-                        <div class="ticker-item">
-                            <div class="ticker-symbol">${item.symbol}</div>
-                            <div class="ticker-price">$--</div>
-                            <div class="ticker-change">Loading...</div>
-                            <button class="btn btn-small" onclick="removeFromWatchlist('${item.symbol}')"
-                                style="margin-top: 5px; padding: 4px 8px; font-size: 0.7rem;">REMOVE</button>
-                        </div>
-                    `).join('');
+                    // Display watchlist items with proper names
+                    watchlistTicker.innerHTML = watchlist.map(item => {
+                        // Get the asset name from the assets object
+                        const assetName = (assets[item.category] && assets[item.category][item.symbol])
+                            ? assets[item.category][item.symbol]
+                            : item.symbol;
+
+                        return `
+                            <div class="ticker-item" id="ticker-${item.symbol}">
+                                <div class="ticker-symbol">${assetName}</div>
+                                <div class="ticker-price" id="price-${item.symbol}">Loading...</div>
+                                <div class="ticker-change" id="change-${item.symbol}">--</div>
+                                <button class="btn btn-small" onclick="removeFromWatchlist('${item.symbol}')"
+                                    style="margin-top: 5px; padding: 4px 8px; font-size: 0.7rem;">REMOVE</button>
+                            </div>
+                        `;
+                    }).join('');
+
+                    // Load prices for each asset
+                    watchlist.forEach(item => {
+                        loadWatchlistPrice(item.symbol, item.category);
+                    });
                 }
             } catch (error) {
                 console.error('Error loading watchlist:', error);
                 watchlistTicker.innerHTML = '<div class="alert alert-error">FAILED TO LOAD WATCHLIST</div>';
             } finally {
                 watchlistLoading.style.display = 'none';
+            }
+        }
+
+        async function loadWatchlistPrice(symbol, category) {
+            try {
+                const response = await fetch(`${API_URL}/api/price/${category}/${symbol}`);
+                const data = await response.json();
+
+                const priceEl = document.getElementById(`price-${symbol}`);
+                const changeEl = document.getElementById(`change-${symbol}`);
+
+                if (data.price !== undefined && priceEl && changeEl) {
+                    priceEl.textContent = `$${data.price.toFixed(2)}`;
+
+                    if (data.change !== undefined) {
+                        const changePercent = data.change_percent || 0;
+                        const changeClass = changePercent >= 0 ? 'positive' : 'negative';
+                        const changeSymbol = changePercent >= 0 ? '+' : '';
+                        changeEl.innerHTML = `<span class="${changeClass}">${changeSymbol}${changePercent.toFixed(2)}%</span>`;
+                    }
+                }
+            } catch (error) {
+                console.error(`Error loading price for ${symbol}:`, error);
+                const priceEl = document.getElementById(`price-${symbol}`);
+                if (priceEl) {
+                    priceEl.textContent = 'N/A';
+                }
             }
         }
 
