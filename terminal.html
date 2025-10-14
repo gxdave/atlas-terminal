@@ -2469,7 +2469,7 @@
 
         async function loadWatchlistPrice(symbol, category) {
             try {
-                const response = await fetch(`${API_URL}/api/price/${category}/${symbol}`);
+                const response = await fetch(`${API_URL}/api/market-data/${encodeURIComponent(symbol)}`);
                 const data = await response.json();
 
                 const priceEl = document.getElementById(`price-${symbol}`);
@@ -2478,8 +2478,8 @@
                 if (data.price !== undefined && priceEl && changeEl) {
                     priceEl.textContent = `$${data.price.toFixed(2)}`;
 
-                    if (data.change !== undefined) {
-                        const changePercent = data.change_percent || 0;
+                    if (data.changePercent !== undefined) {
+                        const changePercent = data.changePercent;
                         const changeClass = changePercent >= 0 ? 'positive' : 'negative';
                         const changeSymbol = changePercent >= 0 ? '+' : '';
                         changeEl.innerHTML = `<span class="${changeClass}">${changeSymbol}${changePercent.toFixed(2)}%</span>`;
@@ -2488,8 +2488,12 @@
             } catch (error) {
                 console.error(`Error loading price for ${symbol}:`, error);
                 const priceEl = document.getElementById(`price-${symbol}`);
+                const changeEl = document.getElementById(`change-${symbol}`);
                 if (priceEl) {
                     priceEl.textContent = 'N/A';
+                }
+                if (changeEl) {
+                    changeEl.textContent = '--';
                 }
             }
         }
