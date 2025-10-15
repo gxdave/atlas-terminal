@@ -1664,6 +1664,41 @@
             }
         }
 
+        async function autoLoadChartLayout() {
+            const token = localStorage.getItem('atlasToken');
+            if (!token) {
+                console.log('No token available for auto-loading chart layout');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/user/settings`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.settings && data.settings.chart_layout && data.settings.chart_layout.length > 0) {
+                        console.log('Auto-loading saved chart layout...');
+                        clearAllCharts();
+                        const layout = data.settings.chart_layout;
+                        layout.forEach(chart => {
+                            createChartWindow(chart.symbol, chart.name, chart.x, chart.y, chart.width, chart.height);
+                        });
+                        console.log('✓ Chart layout loaded successfully');
+                    } else {
+                        console.log('No saved chart layout found');
+                    }
+                } else {
+                    console.warn('Failed to auto-load chart layout:', response.statusText);
+                }
+            } catch (error) {
+                console.error('Error auto-loading chart layout:', error);
+            }
+        }
+
         function applyLayoutPreset(preset) {
             clearAllCharts();
 
@@ -1748,6 +1783,16 @@
                     loadSavedWidgets();
                     refreshWatchlist();
                     window.dashboardLoaded = true;
+                }
+            }
+
+            // Auto-load chart layout when Markets view is opened
+            if (viewName === 'markets') {
+                if (!window.chartsAutoLoaded) {
+                    setTimeout(() => {
+                        autoLoadChartLayout();
+                    }, 500);
+                    window.chartsAutoLoaded = true;
                 }
             }
         }
@@ -2687,16 +2732,28 @@
 
             // Save widget to server if it's a new widget (not loaded from server)
             if (!serverId) {
-                await saveWidgetToServer(widgetType, savedConfig || {});
+                const serverWidgetId = await saveWidgetToServer(widgetType, savedConfig || {});
+                if (serverWidgetId) {
+                    // Update widget ID to server ID
+                    widgetCard.id = serverWidgetId;
+                    // Update remove button with correct ID
+                    const removeBtn = widgetCard.querySelector('.btn-small');
+                    if (removeBtn) {
+                        removeBtn.setAttribute('onclick', `removeWidget(${serverWidgetId})`);
+                    }
+                }
             }
 
             // Load widget data
-            loadWidgetData(widgetId, widgetType);
+            loadWidgetData(widgetCard.id, widgetType);
         }
 
         async function saveWidgetToServer(widgetType, widgetConfig = {}) {
             const token = localStorage.getItem('atlasToken');
-            if (!token) return;
+            if (!token) {
+                console.warn('No token available for saving widget');
+                return null;
+            }
 
             try {
                 const response = await fetch(`${API_URL}/api/user/widgets`, {
@@ -2717,12 +2774,16 @@
 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('Widget saved to server:', data);
+                    console.log('✓ Widget saved to server:', data);
+                    return data.widget_id; // Return the server-assigned widget ID
                 } else {
-                    console.error('Failed to save widget:', response.statusText);
+                    const errorText = await response.text();
+                    console.error('Failed to save widget:', response.statusText, errorText);
+                    return null;
                 }
             } catch (error) {
                 console.error('Error saving widget:', error);
+                return null;
             }
         }
 
@@ -2834,9 +2895,13 @@
                 if (widget) {
                     widget.remove();
 
-                    // Remove from server if it's a server-stored widget
-                    if (typeof widgetId === 'number' || !isNaN(widgetId)) {
-                        await deleteWidgetFromServer(widgetId);
+                    // Remove from server - check if it's a numeric ID (server widget)
+                    const numericId = parseInt(widgetId);
+                    if (!isNaN(numericId) && !widgetId.toString().startsWith('widget_')) {
+                        console.log('Deleting widget from server:', numericId);
+                        await deleteWidgetFromServer(numericId);
+                    } else {
+                        console.log('Temporary widget removed (not saved on server):', widgetId);
                     }
                 }
             }
@@ -2844,7 +2909,10 @@
 
         async function deleteWidgetFromServer(widgetId) {
             const token = localStorage.getItem('atlasToken');
-            if (!token) return;
+            if (!token) {
+                console.warn('No token available for deleting widget');
+                return;
+            }
 
             try {
                 const response = await fetch(`${API_URL}/api/user/widgets/${widgetId}`, {
@@ -2855,9 +2923,10 @@
                 });
 
                 if (response.ok) {
-                    console.log('Widget deleted from server:', widgetId);
+                    console.log('✓ Widget deleted from server:', widgetId);
                 } else {
-                    console.error('Failed to delete widget:', response.statusText);
+                    const errorText = await response.text();
+                    console.error('Failed to delete widget:', response.statusText, errorText);
                 }
             } catch (error) {
                 console.error('Error deleting widget:', error);
