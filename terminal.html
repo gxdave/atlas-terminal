@@ -1590,7 +1590,13 @@
             }
         }
 
-        function saveChartLayout() {
+        async function saveChartLayout() {
+            const token = localStorage.getItem('atlasToken');
+            if (!token) {
+                alert('Please login to save layout');
+                return;
+            }
+
             const layout = chartWindows.map(chart => ({
                 symbol: chart.symbol,
                 name: chart.name,
@@ -1600,20 +1606,61 @@
                 height: parseInt(document.getElementById(chart.id).style.height)
             }));
 
-            localStorage.setItem('atlasChartLayout', JSON.stringify(layout));
-            alert('Layout saved!');
+            try {
+                const response = await fetch(`${API_URL}/api/user/settings`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        chart_layout: layout
+                    })
+                });
+
+                if (response.ok) {
+                    alert('Layout saved successfully!');
+                } else {
+                    alert('Failed to save layout');
+                }
+            } catch (error) {
+                console.error('Error saving chart layout:', error);
+                alert('Error saving layout');
+            }
         }
 
-        function loadChartLayout() {
-            const saved = localStorage.getItem('atlasChartLayout');
-            if (saved) {
-                clearAllCharts();
-                const layout = JSON.parse(saved);
-                layout.forEach(chart => {
-                    createChartWindow(chart.symbol, chart.name, chart.x, chart.y, chart.width, chart.height);
+        async function loadChartLayout() {
+            const token = localStorage.getItem('atlasToken');
+            if (!token) {
+                alert('Please login to load layout');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/user/settings`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
                 });
-            } else {
-                alert('No saved layout found');
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.settings && data.settings.chart_layout) {
+                        clearAllCharts();
+                        const layout = data.settings.chart_layout;
+                        layout.forEach(chart => {
+                            createChartWindow(chart.symbol, chart.name, chart.x, chart.y, chart.width, chart.height);
+                        });
+                        alert('Layout loaded successfully!');
+                    } else {
+                        alert('No saved layout found');
+                    }
+                } else {
+                    alert('Failed to load layout');
+                }
+            } catch (error) {
+                console.error('Error loading chart layout:', error);
+                alert('Error loading layout');
             }
         }
 
@@ -1693,6 +1740,15 @@
             if (viewName === 'riskradar' && !window.riskRadarLoaded) {
                 loadRiskRadar();
                 window.riskRadarLoaded = true;
+            }
+
+            // Load dashboard widgets and watchlist when Dashboard view is opened
+            if (viewName === 'dashboard') {
+                if (!window.dashboardLoaded) {
+                    loadSavedWidgets();
+                    refreshWatchlist();
+                    window.dashboardLoaded = true;
+                }
             }
         }
 
@@ -2509,10 +2565,42 @@
 
         let widgetIdCounter = 0;
 
-        async function addWidget(widgetType) {
+        // Load saved widgets from server on page load
+        async function loadSavedWidgets() {
+            const token = localStorage.getItem('atlasToken');
+            if (!token) return;
+
+            try {
+                const response = await fetch(`${API_URL}/api/user/widgets`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Loaded widgets from server:', data.widgets);
+
+                    // Clear existing widgets
+                    const widgetsContainer = document.getElementById('dashboardWidgets');
+                    widgetsContainer.innerHTML = '';
+
+                    // Restore each widget
+                    for (const widget of data.widgets) {
+                        await addWidget(widget.widget_type, widget.id, widget.widget_config);
+                    }
+                } else {
+                    console.error('Failed to load widgets:', response.statusText);
+                }
+            } catch (error) {
+                console.error('Error loading saved widgets:', error);
+            }
+        }
+
+        async function addWidget(widgetType, serverId = null, savedConfig = null) {
             closeAddWidgetModal();
 
-            const widgetId = `widget_${widgetIdCounter++}`;
+            const widgetId = serverId || `widget_${widgetIdCounter++}`;
             const widgetsContainer = document.getElementById('dashboardWidgets');
 
             const widgetCard = document.createElement('div');
@@ -2597,8 +2685,45 @@
             widgetCard.innerHTML = widgetContent;
             widgetsContainer.appendChild(widgetCard);
 
+            // Save widget to server if it's a new widget (not loaded from server)
+            if (!serverId) {
+                await saveWidgetToServer(widgetType, savedConfig || {});
+            }
+
             // Load widget data
             loadWidgetData(widgetId, widgetType);
+        }
+
+        async function saveWidgetToServer(widgetType, widgetConfig = {}) {
+            const token = localStorage.getItem('atlasToken');
+            if (!token) return;
+
+            try {
+                const response = await fetch(`${API_URL}/api/user/widgets`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        widget_type: widgetType,
+                        widget_config: widgetConfig,
+                        position_x: 0,
+                        position_y: 0,
+                        width: 400,
+                        height: 300
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Widget saved to server:', data);
+                } else {
+                    console.error('Failed to save widget:', response.statusText);
+                }
+            } catch (error) {
+                console.error('Error saving widget:', error);
+            }
         }
 
         async function loadWidgetData(widgetId, widgetType) {
@@ -2703,10 +2828,39 @@
             }
         }
 
-        function removeWidget(widgetId) {
+        async function removeWidget(widgetId) {
             if (confirm('Remove this widget?')) {
                 const widget = document.getElementById(widgetId);
-                if (widget) widget.remove();
+                if (widget) {
+                    widget.remove();
+
+                    // Remove from server if it's a server-stored widget
+                    if (typeof widgetId === 'number' || !isNaN(widgetId)) {
+                        await deleteWidgetFromServer(widgetId);
+                    }
+                }
+            }
+        }
+
+        async function deleteWidgetFromServer(widgetId) {
+            const token = localStorage.getItem('atlasToken');
+            if (!token) return;
+
+            try {
+                const response = await fetch(`${API_URL}/api/user/widgets/${widgetId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    console.log('Widget deleted from server:', widgetId);
+                } else {
+                    console.error('Failed to delete widget:', response.statusText);
+                }
+            } catch (error) {
+                console.error('Error deleting widget:', error);
             }
         }
 
@@ -2718,9 +2872,10 @@
             }
         }
 
-        // Load watchlist on dashboard load
+        // Load watchlist and widgets on dashboard load
         if (document.getElementById('dashboard').classList.contains('active')) {
             refreshWatchlist();
+            loadSavedWidgets();
         }
     </script>
 </body>
