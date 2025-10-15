@@ -1469,6 +1469,9 @@
 
             // Close modal
             closeChartSelector();
+
+            // Auto-save layout after chart is created
+            debounceAutoSaveChartLayout();
         }
 
         function makeDraggable(windowElement) {
@@ -1532,9 +1535,28 @@
         });
 
         document.addEventListener('mouseup', () => {
+            // Auto-save after drag or resize
+            if (draggedWindow || resizedWindow) {
+                updateChartPositions();
+                debounceAutoSaveChartLayout();
+            }
+
             draggedWindow = null;
             resizedWindow = null;
         });
+
+        function updateChartPositions() {
+            // Update chartWindows array with current positions
+            chartWindows.forEach(chart => {
+                const element = document.getElementById(chart.id);
+                if (element) {
+                    chart.x = parseInt(element.style.left);
+                    chart.y = parseInt(element.style.top);
+                    chart.width = parseInt(element.style.width);
+                    chart.height = parseInt(element.style.height);
+                }
+            });
+        }
 
         function setActiveWindow(windowElement) {
             document.querySelectorAll('.chart-window').forEach(w => w.classList.remove('active'));
@@ -1547,6 +1569,9 @@
             if (chartWindow) {
                 chartWindow.remove();
                 chartWindows = chartWindows.filter(c => c.id !== chartId);
+
+                // Auto-save after closing chart
+                debounceAutoSaveChartLayout();
             }
         }
 
@@ -1699,6 +1724,68 @@
             }
         }
 
+        // Debounce timer for auto-save
+        let autoSaveTimer = null;
+
+        function debounceAutoSaveChartLayout() {
+            // Clear existing timer
+            if (autoSaveTimer) {
+                clearTimeout(autoSaveTimer);
+            }
+
+            // Set new timer - save after 2 seconds of inactivity
+            autoSaveTimer = setTimeout(() => {
+                autoSaveChartLayout();
+            }, 2000);
+        }
+
+        async function autoSaveChartLayout() {
+            const token = localStorage.getItem('atlasToken');
+            if (!token) {
+                console.log('No token available for auto-saving chart layout');
+                return;
+            }
+
+            // Don't save if no charts
+            if (chartWindows.length === 0) {
+                console.log('No charts to save');
+                return;
+            }
+
+            try {
+                // Update positions before saving
+                updateChartPositions();
+
+                const layout = chartWindows.map(chart => ({
+                    symbol: chart.symbol,
+                    name: chart.name,
+                    x: chart.x,
+                    y: chart.y,
+                    width: chart.width,
+                    height: chart.height
+                }));
+
+                const response = await fetch(`${API_URL}/api/user/settings`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        chart_layout: layout
+                    })
+                });
+
+                if (response.ok) {
+                    console.log('✓ Chart layout auto-saved:', layout.length, 'charts');
+                } else {
+                    console.error('Failed to auto-save chart layout:', response.statusText);
+                }
+            } catch (error) {
+                console.error('Error auto-saving chart layout:', error);
+            }
+        }
+
         function applyLayoutPreset(preset) {
             clearAllCharts();
 
@@ -1730,6 +1817,11 @@
                     createChartWindow('COMEX:GC1!', 'Gold', (tripleWidth * 2) + 45, 20, tripleWidth, workspaceHeight - 40);
                     break;
             }
+
+            // Auto-save after applying preset (with slight delay to let charts initialize)
+            setTimeout(() => {
+                debounceAutoSaveChartLayout();
+            }, 500);
         }
 
         // Update time
