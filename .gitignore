@@ -26,3 +26,9 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# Database files (NEVER commit these - contain user data!)
+*.db
+*.sqlite
+*.sqlite3
+atlas_users.db
