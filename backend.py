@@ -1321,49 +1321,105 @@ async def analyze_csv_pattern(pattern: List[str]):
 
 @app.get("/api/market-data/{symbol}")
 async def get_market_data(symbol: str):
-    """Get current market data for a symbol with fallback mechanisms"""
+    """Get current market data for a symbol - Alpha Vantage primary, yfinance fallback"""
     try:
         import requests
         import random
 
-        # Enhanced headers to avoid Yahoo Finance blocking
-        user_agents = [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-        ]
+        # Try Alpha Vantage FIRST (more reliable for quotes)
+        api_key = os.environ.get("ALPHAVANTAGE_API_KEY", "demo")
 
-        session = requests.Session()
-        session.headers.update({
-            'User-Agent': random.choice(user_agents),
-            'Accept': 'application/json',
-            'Accept-Language': 'en-US,en;q=0.9',
-        })
+        # Only try Alpha Vantage if we have a valid API key (not demo)
+        if api_key and api_key != "demo":
+            try:
+                # Convert symbol for Alpha Vantage
+                api_symbol = convert_symbol_for_source(symbol, "alphavantage")
 
-        # Try primary method: yfinance
+                # Determine if it's forex
+                is_forex = len(api_symbol) == 6 and symbol.endswith('=X')
+
+                if is_forex:
+                    # Forex endpoint - get intraday data for better price updates
+                    from_currency = api_symbol[:3]
+                    to_currency = api_symbol[3:]
+                    url = "https://www.alphavantage.co/query"
+                    params = {
+                        'function': 'CURRENCY_EXCHANGE_RATE',
+                        'from_currency': from_currency,
+                        'to_currency': to_currency,
+                        'apikey': api_key
+                    }
+
+                    logger.info(f"Alpha Vantage Forex Quote: {from_currency}/{to_currency}")
+                    response = requests.get(url, params=params, timeout=10)
+
+                    if response.status_code == 200:
+                        data = response.json()
+
+                        # Check for API limit message
+                        if 'Note' in data or 'Information' in data:
+                            logger.warning(f"Alpha Vantage rate limit: {data.get('Note', data.get('Information'))}")
+                        elif 'Realtime Currency Exchange Rate' in data:
+                            rate_data = data['Realtime Currency Exchange Rate']
+                            current_price = float(rate_data['5. Exchange Rate'])
+
+                            # Get previous close if available
+                            prev_close = float(rate_data.get('8. Previous Close', current_price))
+                            change = current_price - prev_close
+                            change_percent = (change / prev_close * 100) if prev_close > 0 else 0
+
+                            logger.info(f"✓ Alpha Vantage Forex success: {symbol} = {current_price}")
+                            return {
+                                'symbol': symbol,
+                                'price': round(current_price, 5),
+                                'change': round(change, 5),
+                                'changePercent': round(change_percent, 2),
+                                'volume': 0,
+                                'source': 'Alpha Vantage'
+                            }
+                else:
+                    # Stock/Index/Commodity endpoint
+                    url = "https://www.alphavantage.co/query"
+                    params = {
+                        'function': 'GLOBAL_QUOTE',
+                        'symbol': api_symbol,
+                        'apikey': api_key
+                    }
+
+                    logger.info(f"Alpha Vantage Quote: {api_symbol}")
+                    response = requests.get(url, params=params, timeout=10)
+
+                    if response.status_code == 200:
+                        data = response.json()
+
+                        # Check for API limit message
+                        if 'Note' in data or 'Information' in data:
+                            logger.warning(f"Alpha Vantage rate limit: {data.get('Note', data.get('Information'))}")
+                        elif 'Global Quote' in data and data['Global Quote']:
+                            quote = data['Global Quote']
+                            current_price = float(quote.get('05. price', 0))
+
+                            if current_price > 0:
+                                change_percent = float(quote.get('10. change percent', '0').replace('%', ''))
+                                change = float(quote.get('09. change', 0))
+                                volume = int(float(quote.get('06. volume', 0)))
+
+                                logger.info(f"✓ Alpha Vantage success: {symbol} = {current_price}")
+                                return {
+                                    'symbol': symbol,
+                                    'price': round(current_price, 2),
+                                    'change': round(change, 2),
+                                    'changePercent': round(change_percent, 2),
+                                    'volume': volume,
+                                    'source': 'Alpha Vantage'
+                                }
+            except Exception as e:
+                logger.warning(f"Alpha Vantage failed for {symbol}: {e}")
+        else:
+            logger.info(f"No valid Alpha Vantage API key, skipping to fallback sources")
+
+        # Fallback 1: Yahoo Finance v8 API (most reliable fallback)
         try:
-            ticker = yf.Ticker(symbol, session=session)
-            hist = ticker.history(period="5d", timeout=10)
-
-            if len(hist) >= 2:
-                current_price = float(hist['Close'].iloc[-1])
-                prev_price = float(hist['Close'].iloc[-2])
-                change = current_price - prev_price
-                change_percent = (change / prev_price) * 100
-
-                return {
-                    'symbol': symbol,
-                    'price': round(current_price, 5),
-                    'change': round(change, 5),
-                    'changePercent': round(change_percent, 2),
-                    'volume': int(hist['Volume'].iloc[-1]) if hist['Volume'].iloc[-1] > 0 else 0
-                }
-        except Exception as e:
-            logger.warning(f"yfinance failed for {symbol}: {e}")
-
-        # Fallback 1: Yahoo Finance v8 API
-        try:
-            from datetime import datetime, timedelta
-
             end_date = datetime.now()
             start_date = end_date - timedelta(days=5)
             start_ts = int(start_date.timestamp())
@@ -1377,10 +1433,11 @@ async def get_market_data(symbol: str):
             }
 
             headers = {
-                'User-Agent': random.choice(user_agents),
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
                 'Accept': 'application/json'
             }
 
+            logger.info(f"Trying Yahoo v8 API for {symbol}")
             response = requests.get(url, params=params, headers=headers, timeout=10)
 
             if response.status_code == 200:
@@ -1400,17 +1457,55 @@ async def get_market_data(symbol: str):
                             change = current_price - prev_price
                             change_percent = (change / prev_price) * 100
 
+                            logger.info(f"✓ Yahoo v8 API success: {symbol} = {current_price}")
                             return {
                                 'symbol': symbol,
-                                'price': round(current_price, 5),
-                                'change': round(change, 5),
+                                'price': round(current_price, 5 if '=X' in symbol else 2),
+                                'change': round(change, 5 if '=X' in symbol else 2),
                                 'changePercent': round(change_percent, 2),
-                                'volume': int(volumes[-1]) if volumes else 0
+                                'volume': int(volumes[-1]) if volumes else 0,
+                                'source': 'Yahoo Finance'
                             }
         except Exception as e:
             logger.warning(f"Yahoo v8 API failed for {symbol}: {e}")
 
-        # Fallback 2: Static mock data for demo purposes
+        # Fallback 2: yfinance library
+        try:
+            user_agents = [
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            ]
+
+            session = requests.Session()
+            session.headers.update({
+                'User-Agent': random.choice(user_agents),
+                'Accept': 'application/json',
+                'Accept-Language': 'en-US,en;q=0.9',
+            })
+
+            logger.info(f"Trying yfinance library for {symbol}")
+            ticker = yf.Ticker(symbol, session=session)
+            hist = ticker.history(period="5d", timeout=10)
+
+            if len(hist) >= 2:
+                current_price = float(hist['Close'].iloc[-1])
+                prev_price = float(hist['Close'].iloc[-2])
+                change = current_price - prev_price
+                change_percent = (change / prev_price) * 100
+
+                logger.info(f"✓ yfinance success: {symbol} = {current_price}")
+                return {
+                    'symbol': symbol,
+                    'price': round(current_price, 5 if '=X' in symbol else 2),
+                    'change': round(change, 5 if '=X' in symbol else 2),
+                    'changePercent': round(change_percent, 2),
+                    'volume': int(hist['Volume'].iloc[-1]) if hist['Volume'].iloc[-1] > 0 else 0,
+                    'source': 'yfinance'
+                }
+        except Exception as e:
+            logger.warning(f"yfinance failed for {symbol}: {e}")
+
+        # Fallback 3: Static mock data for demo purposes
         logger.warning(f"All data sources failed for {symbol}. Using mock data.")
 
         # Generate realistic mock data based on symbol type
@@ -1431,7 +1526,8 @@ async def get_market_data(symbol: str):
             'change': round(mock_price * mock_change_percent / 100, 2),
             'changePercent': round(mock_change_percent, 2),
             'volume': 0,
-            'note': 'Demo data - Live feed temporarily unavailable'
+            'source': 'Demo data',
+            'note': 'Live feed temporarily unavailable'
         }
 
     except Exception as e:
