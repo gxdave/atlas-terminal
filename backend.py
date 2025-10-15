@@ -991,39 +991,50 @@ async def get_user_widgets(current_user: User = Depends(get_current_active_user)
     conn.close()
     return {"widgets": widgets}
 
+class WidgetCreate(BaseModel):
+    widget_type: str
+    widget_config: dict = {}
+    position_x: int = 0
+    position_y: int = 0
+    width: int = 400
+    height: int = 300
+
 @app.post("/api/user/widgets")
 async def add_widget(
-    widget_type: str,
-    widget_config: dict,
-    position_x: int = 0,
-    position_y: int = 0,
-    width: int = 400,
-    height: int = 300,
+    widget_data: WidgetCreate,
     current_user: User = Depends(get_current_active_user)
 ):
     """Add widget to user's dashboard"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    cursor.execute("""
-        INSERT INTO user_widgets
-        (username, widget_type, widget_config, position_x, position_y, width, height)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (
-        current_user.username,
-        widget_type,
-        json.dumps(widget_config),
-        position_x,
-        position_y,
-        width,
-        height
-    ))
+    try:
+        cursor.execute("""
+            INSERT INTO user_widgets
+            (username, widget_type, widget_config, position_x, position_y, width, height)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            current_user.username,
+            widget_data.widget_type,
+            json.dumps(widget_data.widget_config),
+            widget_data.position_x,
+            widget_data.position_y,
+            widget_data.width,
+            widget_data.height
+        ))
 
-    widget_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
+        widget_id = cursor.lastrowid
+        conn.commit()
 
-    return {"message": "Widget added successfully", "widget_id": widget_id}
+        logger.info(f"Widget created for {current_user.username}: ID={widget_id}, Type={widget_data.widget_type}")
+
+        return {"message": "Widget added successfully", "widget_id": widget_id}
+
+    except Exception as e:
+        logger.error(f"Error adding widget: {e}")
+        raise HTTPException(status_code=500, detail=f"Error adding widget: {str(e)}")
+    finally:
+        conn.close()
 
 @app.put("/api/user/widgets/{widget_id}")
 async def update_widget(
