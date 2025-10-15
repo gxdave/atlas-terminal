@@ -1339,15 +1339,16 @@ async def get_market_data(symbol: str):
                 is_forex = len(api_symbol) == 6 and symbol.endswith('=X')
 
                 if is_forex:
-                    # Forex endpoint - get intraday data for better price updates
+                    # Forex endpoint - use FX_DAILY for historical data to calculate proper change
                     from_currency = api_symbol[:3]
                     to_currency = api_symbol[3:]
                     url = "https://www.alphavantage.co/query"
                     params = {
-                        'function': 'CURRENCY_EXCHANGE_RATE',
-                        'from_currency': from_currency,
-                        'to_currency': to_currency,
-                        'apikey': api_key
+                        'function': 'FX_DAILY',
+                        'from_symbol': from_currency,
+                        'to_symbol': to_currency,
+                        'apikey': api_key,
+                        'outputsize': 'compact'  # Last 100 days
                     }
 
                     logger.info(f"Alpha Vantage Forex Quote: {from_currency}/{to_currency}")
@@ -1359,24 +1360,30 @@ async def get_market_data(symbol: str):
                         # Check for API limit message
                         if 'Note' in data or 'Information' in data:
                             logger.warning(f"Alpha Vantage rate limit: {data.get('Note', data.get('Information'))}")
-                        elif 'Realtime Currency Exchange Rate' in data:
-                            rate_data = data['Realtime Currency Exchange Rate']
-                            current_price = float(rate_data['5. Exchange Rate'])
+                        elif 'Time Series FX (Daily)' in data:
+                            time_series = data['Time Series FX (Daily)']
 
-                            # Get previous close if available
-                            prev_close = float(rate_data.get('8. Previous Close', current_price))
-                            change = current_price - prev_close
-                            change_percent = (change / prev_close * 100) if prev_close > 0 else 0
+                            # Get the two most recent trading days
+                            dates = sorted(time_series.keys(), reverse=True)
+                            if len(dates) >= 2:
+                                latest_date = dates[0]
+                                prev_date = dates[1]
 
-                            logger.info(f"✓ Alpha Vantage Forex success: {symbol} = {current_price}")
-                            return {
-                                'symbol': symbol,
-                                'price': round(current_price, 5),
-                                'change': round(change, 5),
-                                'changePercent': round(change_percent, 2),
-                                'volume': 0,
-                                'source': 'Alpha Vantage'
-                            }
+                                current_price = float(time_series[latest_date]['4. close'])
+                                prev_close = float(time_series[prev_date]['4. close'])
+
+                                change = current_price - prev_close
+                                change_percent = (change / prev_close * 100) if prev_close > 0 else 0
+
+                                logger.info(f"✓ Alpha Vantage Forex success: {symbol} = {current_price} ({change_percent:+.2f}%)")
+                                return {
+                                    'symbol': symbol,
+                                    'price': round(current_price, 5),
+                                    'change': round(change, 5),
+                                    'changePercent': round(change_percent, 2),
+                                    'volume': 0,
+                                    'source': 'Alpha Vantage'
+                                }
                 else:
                     # Stock/Index/Commodity endpoint
                     url = "https://www.alphavantage.co/query"
