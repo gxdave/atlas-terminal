@@ -3198,7 +3198,10 @@
                 return;
             }
 
-            tableBody.innerHTML = assets.map(asset => {
+            // Sort by netChange descending (strongest positive to strongest negative)
+            const sortedAssets = [...assets].sort((a, b) => b.netChange - a.netChange);
+
+            tableBody.innerHTML = sortedAssets.map(asset => {
                 const netPositionColor = asset.netPosition > 0 ? '#ffa500' : '#ff8c00';
                 const netChangeColor = asset.netChange > 0 ? '#ffa500' : '#ff8c00';
                 const deltaLongColor = asset.deltaLong > 0 ? '#ffa500' : '#ff8c00';
@@ -3247,7 +3250,7 @@
                                 <span style="color: #888; font-size: 0.85rem;">Long</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 8px;">
-                                <div style="width: 20px; height: 15px; background: #cc7a1a;"></div>
+                                <div style="width: 20px; height: 15px; background: #000; border: 2px solid #f7931a; box-sizing: border-box;"></div>
                                 <span style="color: #888; font-size: 0.85rem;">Short</span>
                             </div>
                         </div>
@@ -3276,7 +3279,7 @@
                                             <div style="flex: 1; background: #f7931a; height: ${longHeight}%; min-height: 2px; position: relative;"
                                                  title="${asset.name}: ${asset.longPct.toFixed(1)}% Long">
                                             </div>
-                                            <div style="flex: 1; background: #cc7a1a; height: ${shortHeight}%; min-height: 2px; position: relative;"
+                                            <div style="flex: 1; background: #000; border: 2px solid #f7931a; height: ${shortHeight}%; min-height: 2px; position: relative; box-sizing: border-box;"
                                                  title="${asset.name}: ${asset.shortPct.toFixed(1)}% Short">
                                             </div>
                                         </div>
