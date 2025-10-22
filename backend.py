@@ -1832,82 +1832,98 @@ async def get_cot_data():
     """Get COT (Commitment of Traders) data for institutional positioning"""
     try:
         import requests
-        from io import StringIO
 
-        logger.info("Fetching COT data from CFTC...")
+        logger.info("Fetching COT data from CFTC Socrata API...")
 
-        # CFTC publishes COT reports weekly
-        # We'll fetch the Disaggregated Futures report (shows Non-Commercial positions)
-        cot_url = "https://www.cftc.gov/dea/newcot/f_disagg.txt"
+        # CFTC Socrata Open Data API - Disaggregated Futures (No API key needed!)
+        # https://publicreporting.cftc.gov/resource/6dca-aqww.json
+        base_url = "https://publicreporting.cftc.gov/resource/6dca-aqww.json"
+
+        # Key instruments to track with their CFTC names
+        instruments_map = {
+            'EURO FX': 'EUR',
+            'BRITISH POUND': 'GBP',
+            'JAPANESE YEN': 'JPY',
+            'SWISS FRANC': 'CHF',
+            'CANADIAN DOLLAR': 'CAD',
+            'AUSTRALIAN DOLLAR': 'AUD',
+            'E-MINI S&P 500': 'SPX',
+            'NASDAQ-100': 'NASDAQ',
+            'DOW JONES': 'DOW',
+            'GOLD': 'Gold',
+            'SILVER': 'Silver',
+            'PLATINUM': 'PLATINUM',
+            'CRUDE OIL': 'Oil',
+            'COPPER': 'COPPER',
+            'NIKKEI': 'NIKKEI'
+        }
+
+        cot_results = []
 
         try:
-            response = requests.get(cot_url, timeout=30)
+            # Fetch recent data (last 1000 records to ensure we get all instruments)
+            # Sort by report date descending to get most recent first
+            params = {
+                '$limit': 1000,
+                '$order': 'report_date_as_yyyy_mm_dd DESC'
+            }
+
+            response = requests.get(base_url, params=params, timeout=30)
 
             if response.status_code == 200:
-                # Parse the COT report (it's a pipe-delimited text file)
-                df = pd.read_csv(StringIO(response.text), delimiter='|')
+                data = response.json()
 
-                # Key instruments to track
-                instruments_map = {
-                    'EURO FX': 'EUR/USD',
-                    'BRITISH POUND': 'GBP/USD',
-                    'JAPANESE YEN': 'USD/JPY',
-                    'SWISS FRANC': 'USD/CHF',
-                    'CANADIAN DOLLAR': 'USD/CAD',
-                    'AUSTRALIAN DOLLAR': 'AUD/USD',
-                    'E-MINI S&P 500': 'S&P 500',
-                    'NASDAQ-100': 'NASDAQ 100',
-                    'GOLD': 'Gold',
-                    'SILVER': 'Silver',
-                    'CRUDE OIL, LIGHT SWEET': 'Crude Oil',
-                    'BITCOIN': 'Bitcoin'
-                }
+                if not data:
+                    raise Exception("Empty response from CFTC API")
 
-                cot_results = []
+                logger.info(f"Received {len(data)} records from CFTC")
 
-                for cftc_name, display_name in instruments_map.items():
-                    # Filter for this instrument
-                    instrument_data = df[df['Market_and_Exchange_Names'].str.contains(cftc_name, case=False, na=False)]
+                # Group data by instrument
+                for cftc_pattern, display_name in instruments_map.items():
+                    # Find matching instruments
+                    matching_records = [
+                        record for record in data
+                        if cftc_pattern.upper() in record.get('market_and_exchange_names', '').upper()
+                    ]
 
-                    if not instrument_data.empty:
-                        # Get the two most recent reports
-                        instrument_data = instrument_data.sort_values('Report_Date_as_YYYY-MM-DD', ascending=False).head(2)
+                    if len(matching_records) >= 2:
+                        # Get two most recent reports for this instrument
+                        latest = matching_records[0]
+                        previous = matching_records[1]
 
-                        if len(instrument_data) >= 2:
-                            latest = instrument_data.iloc[0]
-                            previous = instrument_data.iloc[1]
+                        # Non-Commercial positions (Hedge Funds, Large Speculators)
+                        nc_long_latest = float(latest.get('noncomm_positions_long_all', 0))
+                        nc_short_latest = float(latest.get('noncomm_positions_short_all', 0))
+                        nc_long_prev = float(previous.get('noncomm_positions_long_all', 0))
+                        nc_short_prev = float(previous.get('noncomm_positions_short_all', 0))
 
-                            # Non-Commercial positions (Hedge Funds, Large Speculators)
-                            nc_long_latest = float(latest.get('NonComm_Positions_Long_All', 0))
-                            nc_short_latest = float(latest.get('NonComm_Positions_Short_All', 0))
-                            nc_long_prev = float(previous.get('NonComm_Positions_Long_All', 0))
-                            nc_short_prev = float(previous.get('NonComm_Positions_Short_All', 0))
+                        # Calculate net positioning
+                        net_latest = nc_long_latest - nc_short_latest
+                        net_previous = nc_long_prev - nc_short_prev
+                        net_change = net_latest - net_previous
 
-                            # Calculate net positioning
-                            net_latest = nc_long_latest - nc_short_latest
-                            net_previous = nc_long_prev - nc_short_prev
-                            net_change = net_latest - net_previous
+                        # Calculate percentage of open interest
+                        open_interest = float(latest.get('open_interest_all', 1))
+                        net_percent = (net_latest / open_interest * 100) if open_interest > 0 else 0
 
-                            # Calculate percentage of open interest
-                            open_interest = float(latest.get('Open_Interest_All', 1))
-                            net_percent = (net_latest / open_interest * 100) if open_interest > 0 else 0
-
-                            cot_results.append({
-                                'instrument': display_name,
-                                'report_date': str(latest['Report_Date_as_YYYY-MM-DD']),
-                                'non_commercial': {
-                                    'long': int(nc_long_latest),
-                                    'short': int(nc_short_latest),
-                                    'net': int(net_latest),
-                                    'net_percent_of_oi': round(net_percent, 2)
-                                },
-                                'change_from_previous': {
-                                    'net': int(net_change),
-                                    'net_percent_change': round((net_change / abs(net_previous) * 100) if net_previous != 0 else 0, 2)
-                                },
-                                'sentiment': 'BULLISH' if net_latest > 0 else 'BEARISH' if net_latest < 0 else 'NEUTRAL',
-                                'trend': 'INCREASING' if net_change > 0 else 'DECREASING' if net_change < 0 else 'UNCHANGED'
-                            })
+                        cot_results.append({
+                            'instrument': display_name,
+                            'report_date': latest.get('report_date_as_yyyy_mm_dd', ''),
+                            'non_commercial': {
+                                'long': int(nc_long_latest),
+                                'short': int(nc_short_latest),
+                                'net': int(net_latest),
+                                'net_percent_of_oi': round(net_percent, 2)
+                            },
+                            'change_from_previous': {
+                                'net': int(net_change),
+                                'net_percent_change': round((net_change / abs(net_previous) * 100) if net_previous != 0 else 0, 2)
+                            },
+                            'sentiment': 'BULLISH' if net_latest > 0 else 'BEARISH' if net_latest < 0 else 'NEUTRAL',
+                            'trend': 'INCREASING' if net_change > 0 else 'DECREASING' if net_change < 0 else 'UNCHANGED'
+                        })
+                    elif matching_records:
+                        logger.warning(f"Only {len(matching_records)} record(s) found for {cftc_pattern}")
 
                 if cot_results:
                     logger.info(f"✓ COT data fetched successfully: {len(cot_results)} instruments")
@@ -1938,11 +1954,14 @@ async def get_cot_data():
 
                     return {
                         'status': 'success',
-                        'last_update': item['report_date'] if cot_results else datetime.now().isoformat(),
+                        'last_update': cot_results[0]['report_date'] if cot_results else datetime.now().isoformat(),
                         'assets': assets
                     }
                 else:
                     logger.warning("No COT data found for tracked instruments")
+            else:
+                logger.error(f"CFTC API returned status code: {response.status_code}")
+                raise Exception(f"API returned {response.status_code}")
 
         except Exception as e:
             logger.error(f"Error fetching COT data from CFTC: {e}")
