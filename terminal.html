@@ -3199,11 +3199,11 @@
             }
 
             tableBody.innerHTML = assets.map(asset => {
-                const netPositionColor = asset.netPosition > 0 ? '#00ff00' : '#ff0000';
-                const netChangeColor = asset.netChange > 0 ? '#00ff00' : '#ff0000';
-                const deltaLongColor = asset.deltaLong > 0 ? '#00ff00' : '#ff0000';
-                const deltaShortColor = asset.deltaShort > 0 ? '#00ff00' : '#ff0000';
-                const deltaOIColor = asset.deltaOI > 0 ? '#00ff00' : '#ff0000';
+                const netPositionColor = asset.netPosition > 0 ? '#ffa500' : '#ff8c00';
+                const netChangeColor = asset.netChange > 0 ? '#ffa500' : '#ff8c00';
+                const deltaLongColor = asset.deltaLong > 0 ? '#ffa500' : '#ff8c00';
+                const deltaShortColor = asset.deltaShort > 0 ? '#ffa500' : '#ff8c00';
+                const deltaOIColor = asset.deltaOI > 0 ? '#ffa500' : '#ff8c00';
 
                 return `
                     <tr style="border-bottom: 1px solid #333;">
@@ -3212,10 +3212,10 @@
                         <td style="padding: 12px; text-align: right; color: #888;">${asset.shortContracts.toLocaleString()}</td>
                         <td style="padding: 12px; text-align: right; color: ${deltaLongColor};">${asset.deltaLong > 0 ? '+' : ''}${asset.deltaLong.toLocaleString()}</td>
                         <td style="padding: 12px; text-align: right; color: ${deltaShortColor};">${asset.deltaShort > 0 ? '+' : ''}${asset.deltaShort.toLocaleString()}</td>
-                        <td style="padding: 12px; text-align: right; color: #4a9eff; font-weight: bold;">${asset.longPct.toFixed(2)} %</td>
-                        <td style="padding: 12px; text-align: right; color: #ff6b6b; font-weight: bold;">${asset.shortPct.toFixed(2)} %</td>
+                        <td style="padding: 12px; text-align: right; color: #f7931a; font-weight: bold;">${asset.longPct.toFixed(2)} %</td>
+                        <td style="padding: 12px; text-align: right; color: #cc7a1a; font-weight: bold;">${asset.shortPct.toFixed(2)} %</td>
                         <td style="padding: 12px; text-align: right; color: ${netChangeColor}; font-weight: bold;">${asset.netChange > 0 ? '+' : ''}${asset.netChange.toFixed(2)} %</td>
-                        <td style="padding: 12px; text-align: right; color: ${netPositionColor}; font-weight: bold; background: rgba(${asset.netPosition > 0 ? '0,255,0' : '255,0,0'}, 0.1);">${asset.netPosition > 0 ? '+' : ''}${asset.netPosition.toLocaleString()}</td>
+                        <td style="padding: 12px; text-align: right; color: ${netPositionColor}; font-weight: bold; background: rgba(${asset.netPosition > 0 ? '247,147,26' : '204,122,26'}, 0.15);">${asset.netPosition > 0 ? '+' : ''}${asset.netPosition.toLocaleString()}</td>
                         <td style="padding: 12px; text-align: right; color: #888;">${asset.openInterest.toLocaleString()}K</td>
                         <td style="padding: 12px; text-align: right; color: ${deltaOIColor};">${asset.deltaOI > 0 ? '+' : ''}${asset.deltaOI.toLocaleString()}</td>
                     </tr>
@@ -3243,11 +3243,11 @@
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                         <div style="display: flex; gap: 30px;">
                             <div style="display: flex; align-items: center; gap: 8px;">
-                                <div style="width: 20px; height: 15px; background: #4a9eff;"></div>
+                                <div style="width: 20px; height: 15px; background: #f7931a;"></div>
                                 <span style="color: #888; font-size: 0.85rem;">Long</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 8px;">
-                                <div style="width: 20px; height: 15px; background: #ff6b6b;"></div>
+                                <div style="width: 20px; height: 15px; background: #cc7a1a;"></div>
                                 <span style="color: #888; font-size: 0.85rem;">Short</span>
                             </div>
                         </div>
@@ -3273,10 +3273,10 @@
                                 return `
                                     <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; position: relative; min-width: 40px;">
                                         <div style="display: flex; gap: 2px; height: 100%; align-items: flex-end;">
-                                            <div style="flex: 1; background: #4a9eff; height: ${longHeight}%; min-height: 2px; position: relative;"
+                                            <div style="flex: 1; background: #f7931a; height: ${longHeight}%; min-height: 2px; position: relative;"
                                                  title="${asset.name}: ${asset.longPct.toFixed(1)}% Long">
                                             </div>
-                                            <div style="flex: 1; background: #ff6b6b; height: ${shortHeight}%; min-height: 2px; position: relative;"
+                                            <div style="flex: 1; background: #cc7a1a; height: ${shortHeight}%; min-height: 2px; position: relative;"
                                                  title="${asset.name}: ${asset.shortPct.toFixed(1)}% Short">
                                             </div>
                                         </div>

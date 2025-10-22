@@ -1841,6 +1841,7 @@ async def get_cot_data():
 
         # Key instruments to track with their CFTC names
         instruments_map = {
+            'USD INDEX': 'USD',
             'EURO FX': 'EUR',
             'BRITISH POUND': 'GBP',
             'JAPANESE YEN': 'JPY',
