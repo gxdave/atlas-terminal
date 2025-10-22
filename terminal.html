@@ -832,6 +832,9 @@
             <div class="nav-item" onclick="switchView('portfolio')">
                 <span>Portfolio</span>
             </div>
+            <div class="nav-item" onclick="switchView('institutional')">
+                <span>Institutional Positioning</span>
+            </div>
             <div class="nav-item" onclick="switchView('profile')">
                 <span>Profile</span>
             </div>
@@ -1172,6 +1175,65 @@
                 <div class="coming-soon">
                     <h2>PORTFOLIO</h2>
                     <p>Coming Soon</p>
+                </div>
+            </div>
+
+            <!-- Institutional Positioning View -->
+            <div class="view" id="institutional">
+                <!-- COT Net Positioning Chart -->
+                <div class="terminal-card" style="margin-bottom: 20px;">
+                    <div class="terminal-card-header">
+                        <h2>COT Net Positioning</h2>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <span style="font-size: 0.75rem; color: #888;">Last Update: <span id="cotLastUpdate">Loading...</span></span>
+                            <button class="btn btn-small" onclick="refreshCOTData()" style="padding: 6px 12px; font-size: 0.75rem;">REFRESH</button>
+                        </div>
+                    </div>
+                    <div class="terminal-card-body">
+                        <div id="cotLoadingIndicator" class="loading" style="display: none;">
+                            <div class="spinner"></div>
+                            <p style="color: #888;">LOADING COT DATA...</p>
+                        </div>
+                        <div id="cotChartContainer" style="min-height: 400px;">
+                            <!-- COT Chart will be rendered here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Latest Weekly COT Buys & Sells Table -->
+                <div class="terminal-card">
+                    <div class="terminal-card-header">
+                        <h2>Latest Weekly COT Buys & Sells</h2>
+                        <span style="font-size: 0.75rem; color: #888;">Latest filing change in contracts (% form)</span>
+                    </div>
+                    <div class="terminal-card-body">
+                        <div style="overflow-x: auto;">
+                            <table id="cotDataTable" style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                                <thead>
+                                    <tr style="background: #1a1a1a; border-bottom: 2px solid #f7931a;">
+                                        <th style="padding: 12px; text-align: left; color: #f7931a; font-weight: bold;">Asset</th>
+                                        <th style="padding: 12px; text-align: right; color: #f7931a; font-weight: bold;">Long Contracts</th>
+                                        <th style="padding: 12px; text-align: right; color: #f7931a; font-weight: bold;">Short Contracts</th>
+                                        <th style="padding: 12px; text-align: right; color: #f7931a; font-weight: bold;">Δ Long Contracts</th>
+                                        <th style="padding: 12px; text-align: right; color: #f7931a; font-weight: bold;">Δ Short Contracts</th>
+                                        <th style="padding: 12px; text-align: right; color: #f7931a; font-weight: bold;">Long %</th>
+                                        <th style="padding: 12px; text-align: right; color: #f7931a; font-weight: bold;">Short %</th>
+                                        <th style="padding: 12px; text-align: right; color: #f7931a; font-weight: bold;">Net % Change</th>
+                                        <th style="padding: 12px; text-align: right; color: #f7931a; font-weight: bold;">Net Position</th>
+                                        <th style="padding: 12px; text-align: right; color: #f7931a; font-weight: bold;">Open Interest</th>
+                                        <th style="padding: 12px; text-align: right; color: #f7931a; font-weight: bold;">Δ Open Interest</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cotDataTableBody">
+                                    <tr>
+                                        <td colspan="11" style="text-align: center; padding: 40px; color: #666;">
+                                            Loading COT data...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1854,6 +1916,7 @@
                 'markets': 'MARKETS',
                 'economic': 'ECONOMIC DATA',
                 'portfolio': 'PORTFOLIO',
+                'institutional': 'INSTITUTIONAL POSITIONING',
                 'profile': 'PROFILE'
             };
             document.getElementById('headerTitle').textContent = titles[viewName];
@@ -1886,6 +1949,12 @@
                     }, 500);
                     window.chartsAutoLoaded = true;
                 }
+            }
+
+            // Load COT data when Institutional Positioning view is opened
+            if (viewName === 'institutional' && !window.cotDataLoaded) {
+                loadCOTData();
+                window.cotDataLoaded = true;
             }
         }
 
@@ -3031,6 +3100,201 @@
                 card.style.display = 'none';
                 localStorage.setItem('atlasGettingStartedDismissed', 'true');
             }
+        }
+
+        // COT Data Functions
+        let cotDataCache = null;
+
+        async function loadCOTData() {
+            const loadingIndicator = document.getElementById('cotLoadingIndicator');
+            const tableBody = document.getElementById('cotDataTableBody');
+
+            try {
+                loadingIndicator.style.display = 'block';
+
+                // TODO: Replace with your actual COT data API endpoint
+                // For now, using sample data structure
+                const response = await fetch(`${API_URL}/api/cot-data`);
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch COT data');
+                }
+
+                const data = await response.json();
+                cotDataCache = data;
+
+                // Update last update time
+                const lastUpdate = new Date(data.last_update || Date.now());
+                document.getElementById('cotLastUpdate').textContent = lastUpdate.toLocaleString('de-DE', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                // Render table
+                renderCOTTable(data.assets);
+
+                // Render chart
+                renderCOTChart(data.assets);
+
+            } catch (error) {
+                console.error('Error loading COT data:', error);
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="11" style="text-align: center; padding: 40px; color: #ff0000;">
+                            Failed to load COT data. Using sample data for demonstration.
+                        </td>
+                    </tr>
+                `;
+
+                // Load sample data as fallback
+                loadSampleCOTData();
+            } finally {
+                loadingIndicator.style.display = 'none';
+            }
+        }
+
+        function loadSampleCOTData() {
+            const sampleData = {
+                last_update: new Date().toISOString(),
+                assets: [
+                    { name: 'DOW', longContracts: 13217, shortContracts: 13194, deltaLong: 6036, deltaShort: -3330, longPct: 50.04, shortPct: 49.96, netChange: 19.75, netPosition: 23, openInterest: 78000, deltaOI: -20238 },
+                    { name: 'CHF', longContracts: 8227, shortContracts: 31245, deltaLong: 1992, deltaShort: -1030, longPct: 20.84, shortPct: 79.16, netChange: 4.65, netPosition: -23018, openInterest: 72000, deltaOI: 300 },
+                    { name: 'PLATINUM', longContracts: 56669, shortContracts: 34627, deltaLong: 2608, deltaShort: -4231, longPct: 62.07, shortPct: 37.93, netChange: 3.89, netPosition: 22042, openInterest: 98000, deltaOI: -2311 },
+                    { name: 'USD', longContracts: 14032, shortContracts: 24376, deltaLong: 1541, deltaShort: -1009, longPct: 36.53, shortPct: 63.47, netChange: 3.56, netPosition: -10344, openInterest: 40000, deltaOI: 1915 },
+                    { name: 'SPX', longContracts: 229106, shortContracts: 401946, deltaLong: 8211, deltaShort: -41896, longPct: 36.31, shortPct: 63.69, netChange: 3.07, netPosition: -172840, openInterest: 1964000, deltaOI: -503588 },
+                    { name: 'JPY', longContracts: 176400, shortContracts: 96900, deltaLong: 14727, deltaShort: -3362, longPct: 64.54, shortPct: 35.46, netChange: 2.82, netPosition: 79500, openInterest: 310000, deltaOI: 10273 },
+                    { name: 'NIKKEI', longContracts: 10828, shortContracts: 2519, deltaLong: 863, deltaShort: -133, longPct: 81.13, shortPct: 18.87, netChange: 2.15, netPosition: 8309, openInterest: 29000, deltaOI: -572 },
+                    { name: 'NASDAQ', longContracts: 89971, shortContracts: 66566, deltaLong: -214, deltaShort: -5813, longPct: 57.48, shortPct: 42.52, netChange: 2.0, netPosition: 23405, openInterest: 275000, deltaOI: -76726 }
+                ]
+            };
+
+            document.getElementById('cotLastUpdate').textContent = new Date(sampleData.last_update).toLocaleString('de-DE', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            renderCOTTable(sampleData.assets);
+            renderCOTChart(sampleData.assets);
+            cotDataCache = sampleData;
+        }
+
+        function renderCOTTable(assets) {
+            const tableBody = document.getElementById('cotDataTableBody');
+
+            if (!assets || assets.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="11" style="text-align: center; padding: 40px; color: #666;">
+                            No COT data available
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tableBody.innerHTML = assets.map(asset => {
+                const netPositionColor = asset.netPosition > 0 ? '#00ff00' : '#ff0000';
+                const netChangeColor = asset.netChange > 0 ? '#00ff00' : '#ff0000';
+                const deltaLongColor = asset.deltaLong > 0 ? '#00ff00' : '#ff0000';
+                const deltaShortColor = asset.deltaShort > 0 ? '#00ff00' : '#ff0000';
+                const deltaOIColor = asset.deltaOI > 0 ? '#00ff00' : '#ff0000';
+
+                return `
+                    <tr style="border-bottom: 1px solid #333;">
+                        <td style="padding: 12px; color: #f7931a; font-weight: bold; background: #1a1a1a;">${asset.name}</td>
+                        <td style="padding: 12px; text-align: right; color: #888;">${asset.longContracts.toLocaleString()}</td>
+                        <td style="padding: 12px; text-align: right; color: #888;">${asset.shortContracts.toLocaleString()}</td>
+                        <td style="padding: 12px; text-align: right; color: ${deltaLongColor};">${asset.deltaLong > 0 ? '+' : ''}${asset.deltaLong.toLocaleString()}</td>
+                        <td style="padding: 12px; text-align: right; color: ${deltaShortColor};">${asset.deltaShort > 0 ? '+' : ''}${asset.deltaShort.toLocaleString()}</td>
+                        <td style="padding: 12px; text-align: right; color: #4a9eff; font-weight: bold;">${asset.longPct.toFixed(2)} %</td>
+                        <td style="padding: 12px; text-align: right; color: #ff6b6b; font-weight: bold;">${asset.shortPct.toFixed(2)} %</td>
+                        <td style="padding: 12px; text-align: right; color: ${netChangeColor}; font-weight: bold;">${asset.netChange > 0 ? '+' : ''}${asset.netChange.toFixed(2)} %</td>
+                        <td style="padding: 12px; text-align: right; color: ${netPositionColor}; font-weight: bold; background: rgba(${asset.netPosition > 0 ? '0,255,0' : '255,0,0'}, 0.1);">${asset.netPosition > 0 ? '+' : ''}${asset.netPosition.toLocaleString()}</td>
+                        <td style="padding: 12px; text-align: right; color: #888;">${asset.openInterest.toLocaleString()}K</td>
+                        <td style="padding: 12px; text-align: right; color: ${deltaOIColor};">${asset.deltaOI > 0 ? '+' : ''}${asset.deltaOI.toLocaleString()}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderCOTChart(assets) {
+            const chartContainer = document.getElementById('cotChartContainer');
+
+            if (!assets || assets.length === 0) {
+                chartContainer.innerHTML = '<p style="text-align: center; color: #666; padding: 40px;">No chart data available</p>';
+                return;
+            }
+
+            // Sort assets by net position percentage (long% - short%)
+            const sortedAssets = [...assets].sort((a, b) => (b.longPct - b.shortPct) - (a.longPct - a.shortPct));
+
+            // Calculate max value for scaling
+            const maxValue = 100;
+
+            // Create chart HTML
+            chartContainer.innerHTML = `
+                <div style="padding: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <div style="display: flex; gap: 30px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 20px; height: 15px; background: #4a9eff;"></div>
+                                <span style="color: #888; font-size: 0.85rem;">Long</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 20px; height: 15px; background: #ff6b6b;"></div>
+                                <span style="color: #888; font-size: 0.85rem;">Short</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="position: relative;">
+                        <!-- Y-axis labels -->
+                        <div style="display: flex; flex-direction: column; justify-content: space-between; position: absolute; left: 0; top: 0; height: 100%; padding-right: 10px;">
+                            <span style="color: #666; font-size: 0.75rem;">100%</span>
+                            <span style="color: #666; font-size: 0.75rem;">80%</span>
+                            <span style="color: #666; font-size: 0.75rem;">60%</span>
+                            <span style="color: #666; font-size: 0.75rem;">40%</span>
+                            <span style="color: #666; font-size: 0.75rem;">20%</span>
+                            <span style="color: #666; font-size: 0.75rem;">0%</span>
+                        </div>
+
+                        <!-- Chart bars -->
+                        <div style="margin-left: 50px; display: flex; gap: 5px; align-items: flex-end; height: 350px; border-bottom: 2px solid #333; border-left: 2px solid #333; padding: 10px 10px 30px 10px;">
+                            ${sortedAssets.map(asset => {
+                                const longHeight = (asset.longPct / maxValue) * 100;
+                                const shortHeight = (asset.shortPct / maxValue) * 100;
+
+                                return `
+                                    <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; position: relative; min-width: 40px;">
+                                        <div style="display: flex; gap: 2px; height: 100%; align-items: flex-end;">
+                                            <div style="flex: 1; background: #4a9eff; height: ${longHeight}%; min-height: 2px; position: relative;"
+                                                 title="${asset.name}: ${asset.longPct.toFixed(1)}% Long">
+                                            </div>
+                                            <div style="flex: 1; background: #ff6b6b; height: ${shortHeight}%; min-height: 2px; position: relative;"
+                                                 title="${asset.name}: ${asset.shortPct.toFixed(1)}% Short">
+                                            </div>
+                                        </div>
+                                        <div style="position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%) rotate(0deg); white-space: nowrap; font-size: 0.75rem; color: #888; text-align: center;">
+                                            ${asset.name}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function refreshCOTData() {
+            cotDataCache = null;
+            await loadCOTData();
         }
 
         // Load watchlist and widgets on dashboard load
