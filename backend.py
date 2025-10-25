@@ -2388,15 +2388,6 @@ async def get_seasonality_assets():
     Get available assets for seasonality analysis grouped by category
     """
     assets = {
-        "forex": [
-            {"symbol": "EURUSD=X", "name": "EUR/USD"},
-            {"symbol": "GBPUSD=X", "name": "GBP/USD"},
-            {"symbol": "USDJPY=X", "name": "USD/JPY"},
-            {"symbol": "AUDUSD=X", "name": "AUD/USD"},
-            {"symbol": "USDCHF=X", "name": "USD/CHF"},
-            {"symbol": "USDCAD=X", "name": "USD/CAD"},
-            {"symbol": "NZDUSD=X", "name": "NZD/USD"}
-        ],
         "crypto": [
             {"symbol": "BTC-USD", "name": "Bitcoin"},
             {"symbol": "ETH-USD", "name": "Ethereum"},
@@ -2404,23 +2395,9 @@ async def get_seasonality_assets():
             {"symbol": "XRP-USD", "name": "Ripple"},
             {"symbol": "ADA-USD", "name": "Cardano"},
             {"symbol": "SOL-USD", "name": "Solana"},
-            {"symbol": "DOGE-USD", "name": "Dogecoin"}
-        ],
-        "commodities": [
-            {"symbol": "GC=F", "name": "Gold"},
-            {"symbol": "SI=F", "name": "Silver"},
-            {"symbol": "CL=F", "name": "Crude Oil"},
-            {"symbol": "NG=F", "name": "Natural Gas"},
-            {"symbol": "HG=F", "name": "Copper"},
-            {"symbol": "PL=F", "name": "Platinum"}
-        ],
-        "indices": [
-            {"symbol": "^GSPC", "name": "S&P 500"},
-            {"symbol": "^DJI", "name": "Dow Jones"},
-            {"symbol": "^IXIC", "name": "NASDAQ"},
-            {"symbol": "^GDAXI", "name": "DAX"},
-            {"symbol": "^FTSE", "name": "FTSE 100"},
-            {"symbol": "^N225", "name": "Nikkei 225"}
+            {"symbol": "DOGE-USD", "name": "Dogecoin"},
+            {"symbol": "MATIC-USD", "name": "Polygon"},
+            {"symbol": "DOT-USD", "name": "Polkadot"}
         ],
         "stocks": [
             {"symbol": "AAPL", "name": "Apple"},
@@ -2429,7 +2406,44 @@ async def get_seasonality_assets():
             {"symbol": "AMZN", "name": "Amazon"},
             {"symbol": "TSLA", "name": "Tesla"},
             {"symbol": "NVDA", "name": "NVIDIA"},
-            {"symbol": "META", "name": "Meta"}
+            {"symbol": "META", "name": "Meta"},
+            {"symbol": "NFLX", "name": "Netflix"},
+            {"symbol": "AMD", "name": "AMD"},
+            {"symbol": "INTC", "name": "Intel"},
+            {"symbol": "JPM", "name": "JP Morgan"},
+            {"symbol": "BAC", "name": "Bank of America"},
+            {"symbol": "V", "name": "Visa"},
+            {"symbol": "MA", "name": "Mastercard"},
+            {"symbol": "DIS", "name": "Disney"},
+            {"symbol": "PYPL", "name": "PayPal"}
+        ],
+        "commodities": [
+            {"symbol": "GC=F", "name": "Gold Futures"},
+            {"symbol": "SI=F", "name": "Silver Futures"},
+            {"symbol": "CL=F", "name": "Crude Oil Futures"},
+            {"symbol": "NG=F", "name": "Natural Gas Futures"},
+            {"symbol": "HG=F", "name": "Copper Futures"},
+            {"symbol": "PL=F", "name": "Platinum Futures"},
+            {"symbol": "GLD", "name": "Gold ETF (GLD)"},
+            {"symbol": "SLV", "name": "Silver ETF (SLV)"},
+            {"symbol": "USO", "name": "Oil ETF (USO)"}
+        ],
+        "indices": [
+            {"symbol": "SPY", "name": "S&P 500 ETF (SPY)"},
+            {"symbol": "QQQ", "name": "NASDAQ ETF (QQQ)"},
+            {"symbol": "DIA", "name": "Dow Jones ETF (DIA)"},
+            {"symbol": "IWM", "name": "Russell 2000 ETF (IWM)"},
+            {"symbol": "EFA", "name": "MSCI EAFE ETF"},
+            {"symbol": "EEM", "name": "Emerging Markets ETF"},
+            {"symbol": "VTI", "name": "Total Stock Market ETF"}
+        ],
+        "forex": [
+            {"symbol": "EURUSD=X", "name": "EUR/USD (May have limited data)"},
+            {"symbol": "GBPUSD=X", "name": "GBP/USD (May have limited data)"},
+            {"symbol": "FXE", "name": "Euro ETF (FXE)"},
+            {"symbol": "FXB", "name": "British Pound ETF (FXB)"},
+            {"symbol": "FXY", "name": "Japanese Yen ETF (FXY)"},
+            {"symbol": "UUP", "name": "US Dollar ETF (UUP)"}
         ]
     }
     return assets
@@ -2441,15 +2455,55 @@ async def get_seasonality(symbol: str):
     Returns monthly average returns, quarterly performance, and historical heatmap
     """
     try:
-        # Fetch historical data (last 10 years)
-        ticker = yf.Ticker(symbol)
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=365 * 10)
+        # Symbol alternatives for problematic tickers
+        symbol_alternatives = {
+            'EURUSD=X': ['EURUSD=X', 'EUR=X', 'EURUSD'],
+            'GBPUSD=X': ['GBPUSD=X', 'GBP=X', 'GBPUSD'],
+            'USDJPY=X': ['USDJPY=X', 'JPY=X', 'USDJPY'],
+            'AUDUSD=X': ['AUDUSD=X', 'AUD=X', 'AUDUSD'],
+            'USDCHF=X': ['USDCHF=X', 'CHF=X', 'USDCHF'],
+            'USDCAD=X': ['USDCAD=X', 'CAD=X', 'USDCAD'],
+            'NZDUSD=X': ['NZDUSD=X', 'NZD=X', 'NZDUSD'],
+        }
 
-        hist = ticker.history(start=start_date, end=end_date)
+        # Try different symbol variations
+        symbols_to_try = symbol_alternatives.get(symbol, [symbol])
+        hist = None
+        successful_symbol = symbol
+        ticker = None
 
-        if hist.empty:
-            raise HTTPException(status_code=404, detail=f"No data available for {symbol}")
+        for try_symbol in symbols_to_try:
+            try:
+                logger.info(f"Attempting to fetch data for: {try_symbol}")
+                ticker = yf.Ticker(try_symbol)
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=365 * 10)
+
+                # Use download method as fallback
+                hist = yf.download(try_symbol, start=start_date, end=end_date, progress=False)
+
+                if not hist.empty:
+                    successful_symbol = try_symbol
+                    logger.info(f"Successfully fetched data for: {try_symbol}")
+                    break
+            except Exception as e:
+                logger.warning(f"Failed to fetch {try_symbol}: {str(e)}")
+                continue
+
+        if hist is None or hist.empty:
+            # Try one more time with a shorter period (5 years instead of 10)
+            try:
+                logger.info(f"Trying shorter period for {symbol}")
+                start_date = datetime.now() - timedelta(days=365 * 5)
+                hist = yf.download(symbol, start=start_date, end=datetime.now(), progress=False)
+            except Exception as e:
+                logger.error(f"All attempts failed for {symbol}: {str(e)}")
+
+        if hist is None or hist.empty:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No data available for {symbol}. Tried alternatives: {', '.join(symbols_to_try)}. This may be due to API rate limits or symbol changes. Please try again later or try a different asset."
+            )
 
         # Calculate monthly returns
         hist['Year'] = hist.index.year
