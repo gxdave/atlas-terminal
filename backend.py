@@ -2202,6 +2202,184 @@ async def get_risk_radar():
         logger.error(f"Error in Risk Radar: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Risk Radar analysis failed: {str(e)}")
 
+# ===== SENTIMENT ENDPOINTS =====
+
+@app.get("/api/sentiment")
+async def get_sentiment_data():
+    """
+    Get Risk On/Risk Off sentiment data for multiple timeframes
+    Returns calculated sentiment scores based on various market indicators
+    """
+    try:
+        # Fetch market data for sentiment indicators
+        vix_data = None
+        spx_data = None
+        gold_data = None
+        dxy_data = None
+
+        try:
+            # Fetch VIX (Volatility Index)
+            vix = yf.Ticker("^VIX")
+            vix_hist = vix.history(period="1mo")
+            if not vix_hist.empty:
+                vix_current = vix_hist['Close'].iloc[-1]
+                vix_daily_change = ((vix_hist['Close'].iloc[-1] / vix_hist['Close'].iloc[-2]) - 1) * 100 if len(vix_hist) > 1 else 0
+                vix_weekly_avg = vix_hist['Close'].tail(5).mean() if len(vix_hist) >= 5 else vix_current
+                vix_monthly_avg = vix_hist['Close'].mean()
+                vix_data = {
+                    'current': vix_current,
+                    'daily': vix_current,
+                    'weekly': vix_weekly_avg,
+                    'monthly': vix_monthly_avg,
+                    'change': vix_daily_change
+                }
+        except Exception as e:
+            logger.warning(f"Failed to fetch VIX data: {e}")
+
+        try:
+            # Fetch S&P 500
+            spx = yf.Ticker("^GSPC")
+            spx_hist = spx.history(period="1mo")
+            if not spx_hist.empty:
+                spx_daily = ((spx_hist['Close'].iloc[-1] / spx_hist['Close'].iloc[-2]) - 1) * 100 if len(spx_hist) > 1 else 0
+                spx_weekly = ((spx_hist['Close'].iloc[-1] / spx_hist['Close'].iloc[-5]) - 1) * 100 if len(spx_hist) >= 5 else spx_daily
+                spx_monthly = ((spx_hist['Close'].iloc[-1] / spx_hist['Close'].iloc[0]) - 1) * 100 if len(spx_hist) > 0 else spx_daily
+                spx_data = {
+                    'daily': spx_daily,
+                    'weekly': spx_weekly,
+                    'monthly': spx_monthly,
+                    'current': spx_hist['Close'].iloc[-1]
+                }
+        except Exception as e:
+            logger.warning(f"Failed to fetch SPX data: {e}")
+
+        try:
+            # Fetch Gold (GC=F)
+            gold = yf.Ticker("GC=F")
+            gold_hist = gold.history(period="1mo")
+
+            if not gold_hist.empty and spx_data:
+                gold_price = gold_hist['Close'].iloc[-1]
+                gold_spx_ratio = gold_price / spx_data['current']
+                gold_data = {
+                    'price': gold_price,
+                    'gold_spx_ratio': gold_spx_ratio
+                }
+        except Exception as e:
+            logger.warning(f"Failed to fetch Gold data: {e}")
+
+        try:
+            # Fetch DXY (US Dollar Index) - using UUP ETF as proxy
+            dxy = yf.Ticker("UUP")
+            dxy_hist = dxy.history(period="1mo")
+            if not dxy_hist.empty:
+                # Convert UUP price to approximate DXY value
+                dxy_current = dxy_hist['Close'].iloc[-1] * 4  # Rough conversion
+                dxy_data = {
+                    'current': dxy_current
+                }
+        except Exception as e:
+            logger.warning(f"Failed to fetch DXY data: {e}")
+
+        # Calculate sentiment scores
+        def calculate_score(vix_val, spx_perf, gold_spx, dxy_val, hy_spreads=3.2, crypto_sent=65):
+            score = 0
+            count = 0
+
+            # VIX: Lower = Risk On
+            if vix_val is not None:
+                vix_score = max(-100, min(100, (20 - vix_val) * 5))
+                score += vix_score
+                count += 1
+
+            # SPX: Positive = Risk On
+            if spx_perf is not None:
+                score += max(-100, min(100, spx_perf * 10))
+                count += 1
+
+            # Gold/SPX: Lower = Risk On
+            if gold_spx is not None:
+                score += max(-100, min(100, -gold_spx * 50))
+                count += 1
+
+            # DXY: Lower = Risk On
+            if dxy_val is not None:
+                score += max(-100, min(100, (100 - dxy_val) * 2))
+                count += 1
+
+            # HY Spreads: Lower = Risk On
+            score += max(-100, min(100, (5 - hy_spreads) * 20))
+            count += 1
+
+            # Crypto Sentiment
+            score += (crypto_sent - 50) * 2
+            count += 1
+
+            return score / count if count > 0 else 0
+
+        # Calculate scores for each timeframe
+        daily_score = calculate_score(
+            vix_data['daily'] if vix_data else None,
+            spx_data['daily'] if spx_data else None,
+            gold_data['gold_spx_ratio'] if gold_data else None,
+            dxy_data['current'] if dxy_data else None,
+            3.2,  # Mock HY Spreads
+            65    # Mock Crypto Sentiment
+        )
+
+        weekly_score = calculate_score(
+            vix_data['weekly'] if vix_data else None,
+            spx_data['weekly'] if spx_data else None,
+            gold_data['gold_spx_ratio'] if gold_data else None,
+            dxy_data['current'] if dxy_data else None,
+            3.1,
+            68
+        )
+
+        monthly_score = calculate_score(
+            vix_data['monthly'] if vix_data else None,
+            spx_data['monthly'] if spx_data else None,
+            gold_data['gold_spx_ratio'] if gold_data else None,
+            dxy_data['current'] if dxy_data else None,
+            2.9,
+            72
+        )
+
+        return {
+            "daily": {
+                "vix": round(vix_data['daily'], 2) if vix_data else None,
+                "spx": round(spx_data['daily'], 2) if spx_data else None,
+                "goldSpx": round(gold_data['gold_spx_ratio'], 3) if gold_data else None,
+                "dxy": round(dxy_data['current'], 1) if dxy_data else None,
+                "hySpreads": 3.2,
+                "cryptoSentiment": 65,
+                "score": round(daily_score, 1)
+            },
+            "weekly": {
+                "vix": round(vix_data['weekly'], 2) if vix_data else None,
+                "spx": round(spx_data['weekly'], 2) if spx_data else None,
+                "goldSpx": round(gold_data['gold_spx_ratio'], 3) if gold_data else None,
+                "dxy": round(dxy_data['current'], 1) if dxy_data else None,
+                "hySpreads": 3.1,
+                "cryptoSentiment": 68,
+                "score": round(weekly_score, 1)
+            },
+            "monthly": {
+                "vix": round(vix_data['monthly'], 2) if vix_data else None,
+                "spx": round(spx_data['monthly'], 2) if spx_data else None,
+                "goldSpx": round(gold_data['gold_spx_ratio'], 3) if gold_data else None,
+                "dxy": round(dxy_data['current'], 1) if dxy_data else None,
+                "hySpreads": 2.9,
+                "cryptoSentiment": 72,
+                "score": round(monthly_score, 1)
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching sentiment data: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch sentiment data: {str(e)}")
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""

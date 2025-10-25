@@ -705,6 +705,77 @@
             font-size: 0.85rem;
         }
 
+        /* Sentiment Gauge Styling */
+        .sentiment-gauge-container {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 25px;
+            transition: all 0.3s;
+        }
+
+        .sentiment-gauge-container:hover {
+            border-color: #f7931a;
+            box-shadow: 0 0 20px rgba(247, 147, 26, 0.2);
+        }
+
+        .gauge-wrapper {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .sentiment-gauge {
+            width: 100%;
+            max-width: 250px;
+            height: auto;
+        }
+
+        .gauge-value {
+            margin-top: 10px;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #f7931a;
+            text-align: center;
+        }
+
+        .gauge-label {
+            margin-top: 5px;
+            font-size: 0.9rem;
+            color: #888;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .indicator-item {
+            background: #000;
+            border: 1px solid #222;
+            border-radius: 4px;
+            padding: 15px;
+            transition: all 0.3s;
+        }
+
+        .indicator-item:hover {
+            border-color: #f7931a;
+            transform: translateY(-2px);
+        }
+
+        .indicator-label {
+            font-size: 0.75rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .indicator-value {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: #f7931a;
+        }
+
         /* Chart Selection Modal */
         .modal {
             display: none;
@@ -834,6 +905,9 @@
             </div>
             <div class="nav-item" onclick="switchView('institutional')">
                 <span>Institutional Positioning</span>
+            </div>
+            <div class="nav-item" onclick="switchView('sentiment')">
+                <span>Sentiment</span>
             </div>
             <div class="nav-item" onclick="switchView('profile')">
                 <span>Profile</span>
@@ -1232,6 +1306,134 @@
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sentiment View -->
+            <div class="view" id="sentiment">
+                <div class="terminal-card" style="margin-bottom: 20px;">
+                    <div class="terminal-card-header">
+                        <h2>RISK ON / RISK OFF SENTIMENT</h2>
+                    </div>
+                    <div class="terminal-card-body">
+                        <p style="color: #888; margin-bottom: 30px;">
+                            Live Marktstimmung basierend auf Risk On / Risk Off Indikatoren
+                        </p>
+
+                        <!-- Gauge Grid -->
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin-top: 30px;">
+                            <!-- Daily Gauge -->
+                            <div class="sentiment-gauge-container">
+                                <h3 style="text-align: center; margin-bottom: 20px; color: #f7931a;">DAILY</h3>
+                                <div class="gauge-wrapper">
+                                    <svg class="sentiment-gauge" viewBox="0 0 200 120">
+                                        <!-- Background Arc -->
+                                        <path class="gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100"
+                                              fill="none" stroke="#1a1a1a" stroke-width="20"/>
+
+                                        <!-- Risk Off Section (Red) -->
+                                        <path class="gauge-risk-off" d="M 20 100 A 80 80 0 0 1 100 20"
+                                              fill="none" stroke="#ff4444" stroke-width="20" opacity="0.3"/>
+
+                                        <!-- Risk On Section (Green) -->
+                                        <path class="gauge-risk-on" d="M 100 20 A 80 80 0 0 1 180 100"
+                                              fill="none" stroke="#00ff88" stroke-width="20" opacity="0.3"/>
+
+                                        <!-- Needle -->
+                                        <line id="daily-needle" x1="100" y1="100" x2="100" y2="30"
+                                              stroke="#f7931a" stroke-width="3" stroke-linecap="round"
+                                              style="transform-origin: 100px 100px; transition: transform 0.5s ease;"/>
+
+                                        <!-- Center Circle -->
+                                        <circle cx="100" cy="100" r="8" fill="#f7931a"/>
+
+                                        <!-- Labels -->
+                                        <text x="20" y="115" fill="#ff4444" font-size="12" font-weight="bold">RISK OFF</text>
+                                        <text x="140" y="115" fill="#00ff88" font-size="12" font-weight="bold">RISK ON</text>
+                                    </svg>
+                                    <div class="gauge-value" id="daily-value">--</div>
+                                    <div class="gauge-label" id="daily-label">Loading...</div>
+                                </div>
+                            </div>
+
+                            <!-- Weekly Gauge -->
+                            <div class="sentiment-gauge-container">
+                                <h3 style="text-align: center; margin-bottom: 20px; color: #f7931a;">WEEKLY</h3>
+                                <div class="gauge-wrapper">
+                                    <svg class="sentiment-gauge" viewBox="0 0 200 120">
+                                        <path class="gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100"
+                                              fill="none" stroke="#1a1a1a" stroke-width="20"/>
+                                        <path class="gauge-risk-off" d="M 20 100 A 80 80 0 0 1 100 20"
+                                              fill="none" stroke="#ff4444" stroke-width="20" opacity="0.3"/>
+                                        <path class="gauge-risk-on" d="M 100 20 A 80 80 0 0 1 180 100"
+                                              fill="none" stroke="#00ff88" stroke-width="20" opacity="0.3"/>
+                                        <line id="weekly-needle" x1="100" y1="100" x2="100" y2="30"
+                                              stroke="#f7931a" stroke-width="3" stroke-linecap="round"
+                                              style="transform-origin: 100px 100px; transition: transform 0.5s ease;"/>
+                                        <circle cx="100" cy="100" r="8" fill="#f7931a"/>
+                                        <text x="20" y="115" fill="#ff4444" font-size="12" font-weight="bold">RISK OFF</text>
+                                        <text x="140" y="115" fill="#00ff88" font-size="12" font-weight="bold">RISK ON</text>
+                                    </svg>
+                                    <div class="gauge-value" id="weekly-value">--</div>
+                                    <div class="gauge-label" id="weekly-label">Loading...</div>
+                                </div>
+                            </div>
+
+                            <!-- Monthly Gauge -->
+                            <div class="sentiment-gauge-container">
+                                <h3 style="text-align: center; margin-bottom: 20px; color: #f7931a;">MONTHLY</h3>
+                                <div class="gauge-wrapper">
+                                    <svg class="sentiment-gauge" viewBox="0 0 200 120">
+                                        <path class="gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100"
+                                              fill="none" stroke="#1a1a1a" stroke-width="20"/>
+                                        <path class="gauge-risk-off" d="M 20 100 A 80 80 0 0 1 100 20"
+                                              fill="none" stroke="#ff4444" stroke-width="20" opacity="0.3"/>
+                                        <path class="gauge-risk-on" d="M 100 20 A 80 80 0 0 1 180 100"
+                                              fill="none" stroke="#00ff88" stroke-width="20" opacity="0.3"/>
+                                        <line id="monthly-needle" x1="100" y1="100" x2="100" y2="30"
+                                              stroke="#f7931a" stroke-width="3" stroke-linecap="round"
+                                              style="transform-origin: 100px 100px; transition: transform 0.5s ease;"/>
+                                        <circle cx="100" cy="100" r="8" fill="#f7931a"/>
+                                        <text x="20" y="115" fill="#ff4444" font-size="12" font-weight="bold">RISK OFF</text>
+                                        <text x="140" y="115" fill="#00ff88" font-size="12" font-weight="bold">RISK ON</text>
+                                    </svg>
+                                    <div class="gauge-value" id="monthly-value">--</div>
+                                    <div class="gauge-label" id="monthly-label">Loading...</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sentiment Indicators -->
+                        <div style="margin-top: 40px; padding: 20px; background: #0a0a0a; border: 1px solid #333; border-radius: 5px;">
+                            <h3 style="margin-bottom: 15px; color: #f7931a;">KEY RISK INDICATORS</h3>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                                <div class="indicator-item">
+                                    <div class="indicator-label">VIX Index</div>
+                                    <div class="indicator-value" id="vix-value">--</div>
+                                </div>
+                                <div class="indicator-item">
+                                    <div class="indicator-label">SPX Performance</div>
+                                    <div class="indicator-value" id="spx-value">--</div>
+                                </div>
+                                <div class="indicator-item">
+                                    <div class="indicator-label">Gold/SPX Ratio</div>
+                                    <div class="indicator-value" id="gold-spx-value">--</div>
+                                </div>
+                                <div class="indicator-item">
+                                    <div class="indicator-label">USD Strength</div>
+                                    <div class="indicator-value" id="dxy-value">--</div>
+                                </div>
+                                <div class="indicator-item">
+                                    <div class="indicator-label">HY Spreads</div>
+                                    <div class="indicator-value" id="hy-value">--</div>
+                                </div>
+                                <div class="indicator-item">
+                                    <div class="indicator-label">Crypto Fear & Greed</div>
+                                    <div class="indicator-value" id="crypto-sentiment-value">--</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1917,6 +2119,7 @@
                 'economic': 'ECONOMIC DATA',
                 'portfolio': 'PORTFOLIO',
                 'institutional': 'INSTITUTIONAL POSITIONING',
+                'sentiment': 'SENTIMENT',
                 'profile': 'PROFILE'
             };
             document.getElementById('headerTitle').textContent = titles[viewName];
@@ -1939,6 +2142,12 @@
                     refreshWatchlist();
                     window.dashboardLoaded = true;
                 }
+            }
+
+            // Load sentiment data when Sentiment view is opened
+            if (viewName === 'sentiment' && !window.sentimentLoaded) {
+                loadSentimentData();
+                window.sentimentLoaded = true;
             }
 
             // Auto-load chart layout when Markets view is opened
@@ -3298,6 +3507,177 @@
         async function refreshCOTData() {
             cotDataCache = null;
             await loadCOTData();
+        }
+
+        // ===== SENTIMENT FUNCTIONS =====
+
+        // Update gauge needle position
+        function updateGaugeNeedle(needleId, value) {
+            // Value should be between -100 (Risk Off) and 100 (Risk On)
+            // Convert to angle: -90deg (left/Risk Off) to 90deg (right/Risk On)
+            const angle = (value / 100) * 90;
+            const needle = document.getElementById(needleId);
+            if (needle) {
+                needle.style.transform = `rotate(${angle}deg)`;
+            }
+        }
+
+        // Calculate Risk On/Off score based on multiple indicators
+        function calculateRiskScore(indicators) {
+            let score = 0;
+            let count = 0;
+
+            // VIX: Lower is more Risk On (inverted)
+            if (indicators.vix !== null) {
+                const vixScore = Math.max(-100, Math.min(100, (20 - indicators.vix) * 5));
+                score += vixScore;
+                count++;
+            }
+
+            // SPX: Positive performance = Risk On
+            if (indicators.spx !== null) {
+                score += Math.max(-100, Math.min(100, indicators.spx * 10));
+                count++;
+            }
+
+            // Gold/SPX Ratio: Lower = Risk On (inverted)
+            if (indicators.goldSpx !== null) {
+                score += Math.max(-100, Math.min(100, -indicators.goldSpx * 50));
+                count++;
+            }
+
+            // DXY: Lower = Risk On (inverted, as weak USD = risk on)
+            if (indicators.dxy !== null) {
+                score += Math.max(-100, Math.min(100, (100 - indicators.dxy) * 2));
+                count++;
+            }
+
+            // HY Spreads: Lower = Risk On (inverted)
+            if (indicators.hySpreads !== null) {
+                score += Math.max(-100, Math.min(100, (5 - indicators.hySpreads) * 20));
+                count++;
+            }
+
+            // Crypto Sentiment: Direct score
+            if (indicators.cryptoSentiment !== null) {
+                // Convert 0-100 scale to -100 to 100
+                score += (indicators.cryptoSentiment - 50) * 2;
+                count++;
+            }
+
+            return count > 0 ? score / count : 0;
+        }
+
+        // Get sentiment label based on score
+        function getSentimentLabel(score) {
+            if (score > 60) return 'EXTREME RISK ON';
+            if (score > 30) return 'RISK ON';
+            if (score > -30) return 'NEUTRAL';
+            if (score > -60) return 'RISK OFF';
+            return 'EXTREME RISK OFF';
+        }
+
+        // Get sentiment color based on score
+        function getSentimentColor(score) {
+            if (score > 60) return '#00ff88';
+            if (score > 30) return '#44ff99';
+            if (score > -30) return '#f7931a';
+            if (score > -60) return '#ff8844';
+            return '#ff4444';
+        }
+
+        // Load and display sentiment data
+        async function loadSentimentData() {
+            try {
+                // Fetch sentiment data from API
+                const response = await fetch('/api/sentiment');
+                if (!response.ok) {
+                    throw new Error(`API Error: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                // Use scores from API (already calculated on backend)
+                const dailyScore = data.daily.score;
+                const weeklyScore = data.weekly.score;
+                const monthlyScore = data.monthly.score;
+
+                // Store data for indicator display
+                const mockData = data;
+
+                // Update gauges
+                updateGaugeNeedle('daily-needle', dailyScore);
+                updateGaugeNeedle('weekly-needle', weeklyScore);
+                updateGaugeNeedle('monthly-needle', monthlyScore);
+
+                // Update values and labels
+                document.getElementById('daily-value').textContent = dailyScore.toFixed(0);
+                document.getElementById('daily-value').style.color = getSentimentColor(dailyScore);
+                document.getElementById('daily-label').textContent = getSentimentLabel(dailyScore);
+
+                document.getElementById('weekly-value').textContent = weeklyScore.toFixed(0);
+                document.getElementById('weekly-value').style.color = getSentimentColor(weeklyScore);
+                document.getElementById('weekly-label').textContent = getSentimentLabel(weeklyScore);
+
+                document.getElementById('monthly-value').textContent = monthlyScore.toFixed(0);
+                document.getElementById('monthly-value').style.color = getSentimentColor(monthlyScore);
+                document.getElementById('monthly-label').textContent = getSentimentLabel(monthlyScore);
+
+                // Update individual indicators (using daily data)
+                if (mockData.daily.vix !== null) {
+                    document.getElementById('vix-value').textContent = mockData.daily.vix.toFixed(1);
+                    document.getElementById('vix-value').style.color = mockData.daily.vix < 20 ? '#00ff88' : '#ff4444';
+                } else {
+                    document.getElementById('vix-value').textContent = 'N/A';
+                }
+
+                if (mockData.daily.spx !== null) {
+                    document.getElementById('spx-value').textContent = `${mockData.daily.spx > 0 ? '+' : ''}${mockData.daily.spx.toFixed(2)}%`;
+                    document.getElementById('spx-value').style.color = mockData.daily.spx > 0 ? '#00ff88' : '#ff4444';
+                } else {
+                    document.getElementById('spx-value').textContent = 'N/A';
+                }
+
+                if (mockData.daily.goldSpx !== null) {
+                    document.getElementById('gold-spx-value').textContent = mockData.daily.goldSpx.toFixed(3);
+                    document.getElementById('gold-spx-value').style.color = mockData.daily.goldSpx < 0.30 ? '#00ff88' : '#ff4444';
+                } else {
+                    document.getElementById('gold-spx-value').textContent = 'N/A';
+                }
+
+                if (mockData.daily.dxy !== null) {
+                    document.getElementById('dxy-value').textContent = mockData.daily.dxy.toFixed(1);
+                    document.getElementById('dxy-value').style.color = mockData.daily.dxy < 103 ? '#00ff88' : '#ff4444';
+                } else {
+                    document.getElementById('dxy-value').textContent = 'N/A';
+                }
+
+                if (mockData.daily.hySpreads !== null) {
+                    document.getElementById('hy-value').textContent = `${mockData.daily.hySpreads.toFixed(1)}%`;
+                    document.getElementById('hy-value').style.color = mockData.daily.hySpreads < 4 ? '#00ff88' : '#ff4444';
+                } else {
+                    document.getElementById('hy-value').textContent = 'N/A';
+                }
+
+                if (mockData.daily.cryptoSentiment !== null) {
+                    document.getElementById('crypto-sentiment-value').textContent = mockData.daily.cryptoSentiment;
+                    if (mockData.daily.cryptoSentiment > 75) {
+                        document.getElementById('crypto-sentiment-value').style.color = '#00ff88';
+                    } else if (mockData.daily.cryptoSentiment > 50) {
+                        document.getElementById('crypto-sentiment-value').style.color = '#f7931a';
+                    } else {
+                        document.getElementById('crypto-sentiment-value').style.color = '#ff4444';
+                    }
+                } else {
+                    document.getElementById('crypto-sentiment-value').textContent = 'N/A';
+                }
+
+            } catch (error) {
+                console.error('Error loading sentiment data:', error);
+                document.getElementById('daily-label').textContent = 'Error loading data';
+                document.getElementById('weekly-label').textContent = 'Error loading data';
+                document.getElementById('monthly-label').textContent = 'Error loading data';
+            }
         }
 
         // Load watchlist and widgets on dashboard load

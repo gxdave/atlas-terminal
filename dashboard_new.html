@@ -1,0 +1,579 @@
+<!-- NEW CUSTOMIZABLE DASHBOARD -->
+<div class="view active" id="dashboard">
+    <!-- Dashboard Toolbar -->
+    <div class="terminal-card" style="margin-bottom: 20px;">
+        <div class="terminal-card-header">
+            <h2>Dashboard Controls</h2>
+        </div>
+        <div class="terminal-card-body">
+            <div class="btn-group">
+                <button class="btn btn-small" onclick="openAddAssetModal()">+ ADD ASSET TO WATCHLIST</button>
+                <button class="btn btn-small" onclick="openAddWidgetModal()">+ ADD WIDGET</button>
+                <button class="btn btn-small" onclick="saveDashboardLayout()">SAVE LAYOUT</button>
+                <button class="btn btn-small" onclick="loadDashboardLayout()">LOAD LAYOUT</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Watchlist Section -->
+    <div class="terminal-card" style="margin-bottom: 20px;">
+        <div class="terminal-card-header">
+            <h2>My Watchlist</h2>
+            <button class="btn btn-small" onclick="refreshWatchlist()" style="padding: 8px 16px;">REFRESH</button>
+        </div>
+        <div class="terminal-card-body">
+            <div id="watchlistLoading" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p style="color: #888;">LOADING WATCHLIST...</p>
+            </div>
+            <div class="market-ticker" id="watchlistTicker">
+                <!-- Dynamic watchlist items -->
+                <div style="color: #666; padding: 20px; text-align: center; width: 100%;">
+                    Your watchlist is empty. Click "ADD ASSET TO WATCHLIST" to get started.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Widgets Grid -->
+    <div id="dashboardWidgets" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 20px;">
+        <!-- Dynamic widgets will be inserted here -->
+    </div>
+
+    <!-- Getting Started Card -->
+    <div class="terminal-card" id="gettingStartedCard">
+        <div class="terminal-card-header">
+            <h2>Getting Started</h2>
+            <button class="btn btn-small" onclick="dismissGettingStarted()" style="padding: 6px 12px;">DISMISS</button>
+        </div>
+        <div class="terminal-card-body">
+            <p style="color: #888; line-height: 1.8;">
+                Welcome to <strong style="color: #f7931a;">ATLAS TERMINAL</strong>.
+                This is your professional-grade financial analysis platform.
+            </p>
+            <br>
+            <p style="color: #888; line-height: 1.8;">
+                <strong style="color: #f7931a;">Quick Start:</strong><br>
+                1. Click <strong style="color: #f7931a;">"+ ADD ASSET TO WATCHLIST"</strong> to monitor your favorite assets<br>
+                2. Click <strong style="color: #f7931a;">"+ ADD WIDGET"</strong> to customize your dashboard (News, Risk Radar, Charts)<br>
+                3. Explore <strong style="color: #f7931a;">Probability Analyzer</strong> to analyze candlestick patterns<br>
+                4. Use the sidebar to navigate between different tools
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Add Asset Modal -->
+<div class="modal" id="addAssetModal">
+    <div class="modal-content">
+        <div class="modal-header">ADD ASSET TO WATCHLIST</div>
+
+        <div class="form-group" style="margin-bottom: 20px;">
+            <label for="assetCategory">Category</label>
+            <select id="assetCategory" onchange="updateAssetSymbols()">
+                <option value="">Select Category...</option>
+            </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 20px;">
+            <label for="assetSymbol">Asset</label>
+            <select id="assetSymbol">
+                <option value="">Select category first...</option>
+            </select>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn btn-small" onclick="closeAddAssetModal()">CANCEL</button>
+            <button class="btn btn-small" onclick="addAssetToWatchlist()">ADD TO WATCHLIST</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Widget Modal -->
+<div class="modal" id="addWidgetModal">
+    <div class="modal-content">
+        <div class="modal-header">ADD WIDGET TO DASHBOARD</div>
+
+        <div class="symbol-grid">
+            <div class="symbol-card" onclick="addWidget('news')">
+                <div class="symbol-card-name">📰 NEWS FEED</div>
+                <div class="symbol-card-symbol">Latest financial news</div>
+            </div>
+            <div class="symbol-card" onclick="addWidget('risk_radar')">
+                <div class="symbol-card-name">📊 RISK RADAR</div>
+                <div class="symbol-card-symbol">Market stress monitor</div>
+            </div>
+            <div class="symbol-card" onclick="addWidget('chart')">
+                <div class="symbol-card-name">📈 CHART</div>
+                <div class="symbol-card-symbol">TradingView chart</div>
+            </div>
+            <div class="symbol-card" onclick="addWidget('economic')">
+                <div class="symbol-card-name">💰 ECONOMIC DATA</div>
+                <div class="symbol-card-symbol">Economic indicators</div>
+            </div>
+            <div class="symbol-card" onclick="addWidget('analyzer')">
+                <div class="symbol-card-name">🎯 ANALYZER</div>
+                <div class="symbol-card-symbol">Quick pattern analyzer</div>
+            </div>
+        </div>
+
+        <button class="btn" onclick="closeAddWidgetModal()" style="width: 100%; margin-top: 20px;">CANCEL</button>
+    </div>
+</div>
+
+<script>
+// ============================================
+// DASHBOARD FUNCTIONS
+// ============================================
+
+let userWatchlist = [];
+let dashboardWidgets = [];
+
+// Load user's watchlist from backend
+async function loadWatchlist() {
+    const token = localStorage.getItem('atlasToken');
+    const watchlistLoading = document.getElementById('watchlistLoading');
+    const watchlistTicker = document.getElementById('watchlistTicker');
+
+    watchlistLoading.style.display = 'block';
+
+    try {
+        const response = await fetch(`${API_URL}/api/user/watchlist`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) throw new Error('Failed to load watchlist');
+
+        const data = await response.json();
+        userWatchlist = data.watchlist || [];
+
+        if (userWatchlist.length === 0) {
+            watchlistTicker.innerHTML = `
+                <div style="color: #666; padding: 20px; text-align: center; width: 100%;">
+                    Your watchlist is empty. Click "ADD ASSET TO WATCHLIST" to get started.
+                </div>
+            `;
+        } else {
+            // Display watchlist items
+            watchlistTicker.innerHTML = '';
+
+            for (const item of userWatchlist) {
+                const tickerItem = document.createElement('div');
+                tickerItem.className = 'ticker-item';
+                tickerItem.style.position = 'relative';
+
+                // Try to get live market data
+                try {
+                    const marketData = await fetch(`${API_URL}/api/market-data/${item.symbol}`);
+                    if (marketData.ok) {
+                        const data = await marketData.json();
+                        const changeClass = data.changePercent >= 0 ? 'positive' : 'negative';
+
+                        tickerItem.innerHTML = `
+                            <button class="chart-window-btn" onclick="removeFromWatchlist('${item.symbol}')"
+                                    style="position: absolute; top: -5px; right: -5px; background: #ff0000; border-color: #ff0000; color: #fff;">
+                                ×
+                            </button>
+                            <span class="ticker-symbol">${item.symbol}</span>
+                            <span class="ticker-price">${data.price.toFixed(2)}</span>
+                            <span class="ticker-change ${changeClass}">${data.changePercent >= 0 ? '+' : ''}${data.changePercent.toFixed(2)}%</span>
+                        `;
+                    } else {
+                        throw new Error('No market data');
+                    }
+                } catch {
+                    // Fallback without live data
+                    tickerItem.innerHTML = `
+                        <button class="chart-window-btn" onclick="removeFromWatchlist('${item.symbol}')"
+                                style="position: absolute; top: -5px; right: -5px; background: #ff0000; border-color: #ff0000; color: #fff;">
+                            ×
+                        </button>
+                        <span class="ticker-symbol">${item.symbol}</span>
+                        <span class="ticker-price" style="color: #888;">Loading...</span>
+                    `;
+                }
+
+                watchlistTicker.appendChild(tickerItem);
+            }
+        }
+
+    } catch (error) {
+        console.error('Error loading watchlist:', error);
+        watchlistTicker.innerHTML = `
+            <div class="alert alert-error">Failed to load watchlist</div>
+        `;
+    } finally {
+        watchlistLoading.style.display = 'none';
+    }
+}
+
+// Refresh watchlist
+function refreshWatchlist() {
+    loadWatchlist();
+}
+
+// Open add asset modal
+function openAddAssetModal() {
+    const modal = document.getElementById('addAssetModal');
+    const categorySelect = document.getElementById('assetCategory');
+
+    // Populate categories
+    categorySelect.innerHTML = '<option value="">Select Category...</option>';
+    Object.keys(assets).forEach(category => {
+        const option = document.createElement('option');
+        option.value = category;
+        option.textContent = category.toUpperCase();
+        categorySelect.appendChild(option);
+    });
+
+    modal.classList.add('active');
+}
+
+function closeAddAssetModal() {
+    document.getElementById('addAssetModal').classList.remove('active');
+}
+
+function updateAssetSymbols() {
+    const category = document.getElementById('assetCategory').value;
+    const symbolSelect = document.getElementById('assetSymbol');
+
+    if (!category) {
+        symbolSelect.innerHTML = '<option value="">Select category first...</option>';
+        return;
+    }
+
+    symbolSelect.innerHTML = '<option value="">Select asset...</option>';
+
+    Object.entries(assets[category]).forEach(([symbol, name]) => {
+        const option = document.createElement('option');
+        option.value = symbol;
+        option.textContent = `${name} (${symbol})`;
+        symbolSelect.appendChild(option);
+    });
+}
+
+async function addAssetToWatchlist() {
+    const token = localStorage.getItem('atlasToken');
+    const category = document.getElementById('assetCategory').value;
+    const symbol = document.getElementById('assetSymbol').value;
+
+    if (!symbol) {
+        alert('Please select an asset');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/api/user/watchlist?symbol=${symbol}&category=${category}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to add asset');
+        }
+
+        closeAddAssetModal();
+        loadWatchlist();
+
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function removeFromWatchlist(symbol) {
+    if (!confirm(`Remove ${symbol} from watchlist?`)) return;
+
+    const token = localStorage.getItem('atlasToken');
+
+    try {
+        const response = await fetch(`${API_URL}/api/user/watchlist/${symbol}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) throw new Error('Failed to remove asset');
+
+        loadWatchlist();
+
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+// Widget Management
+function openAddWidgetModal() {
+    document.getElementById('addWidgetModal').classList.add('active');
+}
+
+function closeAddWidgetModal() {
+    document.getElementById('addWidgetModal').classList.remove('active');
+}
+
+async function addWidget(widgetType) {
+    closeAddWidgetModal();
+
+    const widgetId = `widget_${Date.now()}`;
+    const widgetsContainer = document.getElementById('dashboardWidgets');
+
+    const widgetCard = document.createElement('div');
+    widgetCard.className = 'terminal-card';
+    widgetCard.id = widgetId;
+    widgetCard.style.gridColumn = 'span 1';
+
+    let widgetContent = '';
+    let widgetTitle = '';
+
+    switch(widgetType) {
+        case 'news':
+            widgetTitle = 'Latest News';
+            widgetContent = `
+                <div id="${widgetId}_content" style="max-height: 400px; overflow-y: auto;">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p style="color: #888;">Loading news...</p>
+                    </div>
+                </div>
+            `;
+            break;
+
+        case 'risk_radar':
+            widgetTitle = 'Risk Radar Status';
+            widgetContent = `
+                <div id="${widgetId}_content">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p style="color: #888;">Loading risk data...</p>
+                    </div>
+                </div>
+            `;
+            break;
+
+        case 'chart':
+            widgetTitle = 'Market Chart';
+            widgetContent = `
+                <div id="${widgetId}_content" style="height: 400px;">
+                    <div id="${widgetId}_chart" style="width: 100%; height: 100%;"></div>
+                </div>
+            `;
+            break;
+
+        case 'economic':
+            widgetTitle = 'Economic Indicators';
+            widgetContent = `
+                <div id="${widgetId}_content" style="max-height: 400px; overflow-y: auto;">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p style="color: #888;">Loading economic data...</p>
+                    </div>
+                </div>
+            `;
+            break;
+
+        case 'analyzer':
+            widgetTitle = 'Quick Analyzer';
+            widgetContent = `
+                <div id="${widgetId}_content">
+                    <p style="color: #888; padding: 20px;">
+                        Go to <strong style="color: #f7931a;">Probability Analyzer</strong> for full pattern analysis.
+                    </p>
+                    <button class="btn" onclick="switchView('analyzer')" style="width: 100%;">
+                        OPEN ANALYZER
+                    </button>
+                </div>
+            `;
+            break;
+    }
+
+    widgetCard.innerHTML = `
+        <div class="terminal-card-header">
+            <h2>${widgetTitle}</h2>
+            <button class="chart-window-btn" onclick="removeWidget('${widgetId}')" title="Remove Widget">
+                ×
+            </button>
+        </div>
+        <div class="terminal-card-body">
+            ${widgetContent}
+        </div>
+    `;
+
+    widgetsContainer.appendChild(widgetCard);
+
+    // Load widget data
+    setTimeout(() => loadWidgetData(widgetId, widgetType), 100);
+
+    // Save widget to backend
+    saveWidgetToBackend(widgetType);
+}
+
+async function loadWidgetData(widgetId, widgetType) {
+    const contentDiv = document.getElementById(`${widgetId}_content`);
+
+    try {
+        switch(widgetType) {
+            case 'news':
+                const newsResponse = await fetch(`${API_URL}/api/news`);
+                const newsData = await newsResponse.json();
+
+                if (newsData.articles && newsData.articles.length > 0) {
+                    contentDiv.innerHTML = newsData.articles.slice(0, 5).map(article => {
+                        const date = new Date(article.publishedAt);
+                        const timeAgo = getTimeAgo(date);
+
+                        return `
+                            <div class="news-article" style="margin-bottom: 15px;">
+                                <div class="news-source">${article.source.name}</div>
+                                <div class="news-title" style="font-size: 0.95rem;">${article.title}</div>
+                                <div class="news-meta">
+                                    <span>${timeAgo}</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+                break;
+
+            case 'risk_radar':
+                const riskResponse = await fetch(`${API_URL}/api/risk-radar`);
+                const riskData = await riskResponse.json();
+
+                if (riskData.status === 'success') {
+                    const { current_state } = riskData;
+                    const regimeColors = {
+                        'CALM': '#00ff00',
+                        'WATCH': '#fff3cd',
+                        'WARNING': '#ff6b6b',
+                        'ALERT': '#ff0000'
+                    };
+
+                    contentDiv.innerHTML = `
+                        <div class="stats-grid" style="grid-template-columns: 1fr 1fr;">
+                            <div class="stat-box">
+                                <div class="stat-label">Current Regime</div>
+                                <div class="stat-value" style="color: ${regimeColors[current_state.regime]};">
+                                    ${current_state.regime}
+                                </div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-label">Composite Z-Score</div>
+                                <div class="stat-value">${current_state.composite_z.toFixed(2)}</div>
+                            </div>
+                        </div>
+                        <button class="btn btn-small" onclick="switchView('riskradar')" style="width: 100%; margin-top: 15px;">
+                            VIEW FULL RISK RADAR
+                        </button>
+                    `;
+                }
+                break;
+
+            case 'chart':
+                // Initialize TradingView chart
+                new TradingView.widget({
+                    "width": "100%",
+                    "height": "100%",
+                    "symbol": "FX:EURUSD",
+                    "interval": "D",
+                    "timezone": "Etc/UTC",
+                    "theme": "dark",
+                    "style": "1",
+                    "locale": "en",
+                    "toolbar_bg": "#000000",
+                    "enable_publishing": false,
+                    "hide_top_toolbar": false,
+                    "container_id": `${widgetId}_chart`,
+                    "backgroundColor": "#000000"
+                });
+                break;
+
+            case 'economic':
+                const econResponse = await fetch(`${API_URL}/api/economic/USA`);
+                const econData = await econResponse.json();
+
+                if (econData.indicators) {
+                    contentDiv.innerHTML = econData.indicators.slice(0, 5).map(indicator => {
+                        const changeClass = indicator.change > 0 ? 'value-positive' :
+                                          indicator.change < 0 ? 'value-negative' : 'value-neutral';
+
+                        return `
+                            <div style="padding: 12px; border-bottom: 1px solid #333;">
+                                <div style="color: #f7931a; font-weight: bold; margin-bottom: 5px;">
+                                    ${indicator.name}
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: #888;">Current: ${indicator.current}</span>
+                                    <span class="${changeClass}">${indicator.change >= 0 ? '+' : ''}${indicator.change.toFixed(2)}%</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+                break;
+        }
+
+    } catch (error) {
+        contentDiv.innerHTML = `<div class="alert alert-error">Failed to load widget data</div>`;
+    }
+}
+
+function removeWidget(widgetId) {
+    if (confirm('Remove this widget?')) {
+        document.getElementById(widgetId).remove();
+    }
+}
+
+async function saveWidgetToBackend(widgetType) {
+    const token = localStorage.getItem('atlasToken');
+
+    try {
+        await fetch(`${API_URL}/api/user/widgets?widget_type=${widgetType}&widget_config={}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+    } catch (error) {
+        console.error('Failed to save widget:', error);
+    }
+}
+
+// Dashboard Layout Management
+function saveDashboardLayout() {
+    const layout = {
+        watchlist: userWatchlist,
+        widgets: Array.from(document.getElementById('dashboardWidgets').children).map(widget => ({
+            id: widget.id,
+            type: widget.dataset.type
+        }))
+    };
+
+    localStorage.setItem('atlasDashboardLayout', JSON.stringify(layout));
+    alert('Dashboard layout saved!');
+}
+
+function loadDashboardLayout() {
+    const saved = localStorage.getItem('atlasDashboardLayout');
+    if (saved) {
+        // Implement layout loading
+        alert('Layout loaded!');
+    } else {
+        alert('No saved layout found');
+    }
+}
+
+function dismissGettingStarted() {
+    document.getElementById('gettingStartedCard').style.display = 'none';
+    localStorage.setItem('atlasHideGettingStarted', 'true');
+}
+
+// Check if getting started should be hidden
+if (localStorage.getItem('atlasHideGettingStarted') === 'true') {
+    const card = document.getElementById('gettingStartedCard');
+    if (card) card.style.display = 'none';
+}
+
+// Load watchlist on dashboard load
+if (currentUser) {
+    loadWatchlist();
+}
+</script>

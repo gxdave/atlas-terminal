@@ -32,3 +32,7 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 atlas_users.db
+
+# Temporary files
+_ul
+*.tmp
