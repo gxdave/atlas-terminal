@@ -30,56 +30,72 @@ class DataSourceManager:
             'LINK-USD': 'chainlink'
         }
 
-    def fetch_coingecko_data(self, symbol: str, days: int = 3650) -> pd.DataFrame:
+    def fetch_coincap_data(self, symbol: str) -> pd.DataFrame:
         """
-        Fetch cryptocurrency data from CoinGecko (free, no API key needed)
+        Fetch cryptocurrency data from CoinCap API (completely free, no API key)
         Returns DataFrame with OHLCV data
         """
         try:
-            coin_id = self.crypto_map.get(symbol)
+            # Map to CoinCap IDs
+            coincap_map = {
+                'BTC-USD': 'bitcoin',
+                'ETH-USD': 'ethereum',
+                'BNB-USD': 'binance-coin',
+                'XRP-USD': 'xrp',
+                'ADA-USD': 'cardano',
+                'SOL-USD': 'solana',
+                'DOGE-USD': 'dogecoin',
+                'MATIC-USD': 'polygon',
+                'DOT-USD': 'polkadot',
+                'AVAX-USD': 'avalanche',
+                'LINK-USD': 'chainlink'
+            }
+
+            coin_id = coincap_map.get(symbol)
             if not coin_id:
-                logger.warning(f"Symbol {symbol} not found in crypto mapping")
+                logger.warning(f"Symbol {symbol} not in CoinCap mapping")
                 return None
 
-            logger.info(f"Fetching {symbol} from CoinGecko...")
+            logger.info(f"Fetching {symbol} from CoinCap...")
 
-            # Fetch price data
-            url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
+            # CoinCap provides historical data
+            url = f"https://api.coincap.io/v2/assets/{coin_id}/history"
             params = {
-                'vs_currency': 'usd',
-                'days': min(days, 3650),  # CoinGecko limit
-                'interval': 'daily'
+                'interval': 'd1',  # Daily
+                'start': int((datetime.now() - timedelta(days=3650)).timestamp() * 1000),
+                'end': int(datetime.now().timestamp() * 1000)
             }
 
             response = requests.get(url, params=params, timeout=15)
-            response.raise_for_status()
 
-            data = response.json()
-            prices = data.get('prices', [])
+            if response.status_code != 200:
+                logger.warning(f"CoinCap returned {response.status_code} for {symbol}")
+                return None
 
-            if not prices:
-                logger.warning(f"No price data received from CoinGecko for {symbol}")
+            data = response.json().get('data', [])
+
+            if not data:
+                logger.warning(f"No data from CoinCap for {symbol}")
                 return None
 
             # Convert to DataFrame
-            df = pd.DataFrame(prices, columns=['timestamp', 'Close'])
-            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-            df.set_index('timestamp', inplace=True)
+            df = pd.DataFrame(data)
+            df['date'] = pd.to_datetime(df['time'], unit='ms')
+            df.set_index('date', inplace=True)
+            df['priceUsd'] = pd.to_numeric(df['priceUsd'])
 
-            # CoinGecko only provides close prices, so we'll use them for OHLC
+            # Create OHLC from single price
+            df['Close'] = df['priceUsd']
             df['Open'] = df['Close']
             df['High'] = df['Close']
             df['Low'] = df['Close']
-            df['Volume'] = 0  # Not available in this endpoint
+            df['Volume'] = 0
 
-            logger.info(f"✓ CoinGecko: {len(df)} records for {symbol}")
-            return df
+            logger.info(f"✓ CoinCap: {len(df)} records for {symbol}")
+            return df[['Open', 'High', 'Low', 'Close', 'Volume']]
 
-        except requests.exceptions.RequestException as e:
-            logger.error(f"CoinGecko API error for {symbol}: {str(e)}")
-            return None
         except Exception as e:
-            logger.error(f"Unexpected error fetching {symbol} from CoinGecko: {str(e)}")
+            logger.error(f"CoinCap fetch error for {symbol}: {str(e)}")
             return None
 
     def fetch_alternative_stock_data(self, symbol: str) -> pd.DataFrame:
@@ -138,30 +154,43 @@ class DataSourceManager:
         Fetch data with automatic fallback between sources
         Returns (DataFrame, source_name)
         """
-        # Strategy 1: For crypto, try CoinGecko first (most reliable)
+        # Strategy 1: For crypto, try CoinCap first (completely free, no API key)
         if '-USD' in symbol:
             logger.info(f"Crypto detected: {symbol}")
-            df = self.fetch_coingecko_data(symbol)
+            df = self.fetch_coincap_data(symbol)
             if df is not None and not df.empty:
-                return df, "CoinGecko API"
+                return df, "CoinCap API (Free)"
 
-        # Strategy 2: For stocks/ETFs, try alternative source
+        # Strategy 2: For stocks/ETFs, try yfinance directly (most reliable for stocks)
         if not symbol.endswith('=X') and '-USD' not in symbol:
             logger.info(f"Stock/ETF detected: {symbol}")
-            df = self.fetch_alternative_stock_data(symbol)
-            if df is not None and not df.empty:
-                return df, "Financial Modeling Prep"
+            try:
+                import yfinance as yf
+                time.sleep(0.3)
 
-        # Strategy 3: yfinance as fallback (may be rate-limited)
-        logger.info(f"Trying yfinance for {symbol}...")
+                ticker = yf.Ticker(symbol)
+
+                # Try different periods
+                for period in ['10y', '5y', '3y', '2y']:
+                    try:
+                        hist = ticker.history(period=period)
+                        if not hist.empty and len(hist) > 100:  # Ensure meaningful data
+                            logger.info(f"✓ yfinance ({period}): {len(hist)} records for {symbol}")
+                            return hist, f"yfinance ({period})"
+                    except:
+                        continue
+            except Exception as e:
+                logger.warning(f"yfinance failed for stock {symbol}: {str(e)}")
+
+        # Strategy 3: yfinance as fallback for other assets
+        logger.info(f"Trying yfinance fallback for {symbol}...")
         try:
             import yfinance as yf
-            time.sleep(0.5)  # Rate limiting
+            time.sleep(0.5)
 
             ticker = yf.Ticker(symbol)
 
-            # Try with period parameter
-            for period in ['10y', '5y', '3y']:
+            for period in ['max', '10y', '5y']:
                 try:
                     hist = ticker.history(period=period)
                     if not hist.empty:
@@ -171,7 +200,7 @@ class DataSourceManager:
                     continue
 
         except Exception as e:
-            logger.warning(f"yfinance failed for {symbol}: {str(e)}")
+            logger.warning(f"Final yfinance attempt failed for {symbol}: {str(e)}")
 
         logger.error(f"❌ All data sources failed for {symbol}")
         return None, None
