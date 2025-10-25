@@ -1529,18 +1529,18 @@
                     </div>
                     <div class="terminal-card-body">
                         <p style="color: #888; margin-bottom: 20px;">
-                            Analysiere saisonale Muster und historische Performance-Trends über verschiedene Zeiträume
+                            Analyze seasonal patterns and historical performance trends across different timeframes
                         </p>
 
                         <!-- Asset Selection -->
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
                             <div class="form-group">
-                                <label for="seasonalityCategory">Asset Kategorie</label>
+                                <label for="seasonalityCategory">Asset Category</label>
                                 <select id="seasonalityCategory" onchange="updateSeasonalityAssets()">
-                                    <option value="">Wähle Kategorie...</option>
-                                    <option value="crypto">Crypto (Empfohlen)</option>
-                                    <option value="stocks">Stocks (Empfohlen)</option>
-                                    <option value="indices">Indices ETFs</option>
+                                    <option value="">Select Category...</option>
+                                    <option value="crypto">Crypto (Recommended)</option>
+                                    <option value="stocks">Stocks (Recommended)</option>
+                                    <option value="indices">Index ETFs</option>
                                     <option value="commodities">Commodities</option>
                                     <option value="forex">Forex (Limited)</option>
                                 </select>
@@ -1548,12 +1548,12 @@
                             <div class="form-group">
                                 <label for="seasonalityAsset">Asset</label>
                                 <select id="seasonalityAsset">
-                                    <option value="">Wähle zuerst Kategorie...</option>
+                                    <option value="">Select category first...</option>
                                 </select>
                             </div>
                             <div class="form-group" style="display: flex; align-items: flex-end;">
                                 <button class="btn" onclick="loadSeasonalityData()" style="width: 100%;">
-                                    ANALYSE STARTEN
+                                    START ANALYSIS
                                 </button>
                             </div>
                         </div>
@@ -1561,7 +1561,7 @@
                         <!-- Loading State -->
                         <div id="seasonalityLoading" style="display: none; text-align: center; padding: 40px;">
                             <div class="loading-spinner" style="margin: 0 auto 20px;"></div>
-                            <p style="color: #888;">Lade Seasonality Daten...</p>
+                            <p style="color: #888;">Loading seasonality data...</p>
                         </div>
 
                         <!-- Results Container -->
@@ -1573,19 +1573,19 @@
                                 </h3>
                                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
                                     <div>
-                                        <div style="font-size: 0.75rem; color: #888; margin-bottom: 5px;">AKTUELLER PREIS</div>
+                                        <div style="font-size: 0.75rem; color: #888; margin-bottom: 5px;">CURRENT PRICE</div>
                                         <div style="font-size: 1.2rem; font-weight: bold; color: #f7931a;" id="currentPrice">--</div>
                                     </div>
                                     <div>
-                                        <div style="font-size: 0.75rem; color: #888; margin-bottom: 5px;">BESTE MONATE</div>
+                                        <div style="font-size: 0.75rem; color: #888; margin-bottom: 5px;">BEST MONTHS</div>
                                         <div style="font-size: 1.2rem; font-weight: bold; color: #00ff88;" id="bestMonths">--</div>
                                     </div>
                                     <div>
-                                        <div style="font-size: 0.75rem; color: #888; margin-bottom: 5px;">SCHLECHTESTE MONATE</div>
+                                        <div style="font-size: 0.75rem; color: #888; margin-bottom: 5px;">WORST MONTHS</div>
                                         <div style="font-size: 1.2rem; font-weight: bold; color: #ff4444;" id="worstMonths">--</div>
                                     </div>
                                     <div>
-                                        <div style="font-size: 0.75rem; color: #888; margin-bottom: 5px;">DATENBEREICH</div>
+                                        <div style="font-size: 0.75rem; color: #888; margin-bottom: 5px;">DATA RANGE</div>
                                         <div style="font-size: 1.2rem; font-weight: bold; color: #f7931a;" id="dataRange">--</div>
                                     </div>
                                 </div>
@@ -1594,7 +1594,7 @@
                             <!-- Monthly Seasonality Chart -->
                             <div class="terminal-card" style="margin-bottom: 20px;">
                                 <div class="terminal-card-header">
-                                    <h3>MONATLICHE SEASONALITY</h3>
+                                    <h3>MONTHLY SEASONALITY</h3>
                                 </div>
                                 <div class="terminal-card-body">
                                     <div id="monthlySeasonalityChart" style="height: 400px;">
@@ -1606,7 +1606,7 @@
                             <!-- Quarterly Performance -->
                             <div class="terminal-card" style="margin-bottom: 20px;">
                                 <div class="terminal-card-header">
-                                    <h3>QUARTALS PERFORMANCE</h3>
+                                    <h3>QUARTERLY PERFORMANCE</h3>
                                 </div>
                                 <div class="terminal-card-body">
                                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
@@ -1637,7 +1637,7 @@
                             <!-- Historical Heatmap -->
                             <div class="terminal-card">
                                 <div class="terminal-card-header">
-                                    <h3>HISTORISCHE HEATMAP</h3>
+                                    <h3>HISTORICAL HEATMAP</h3>
                                 </div>
                                 <div class="terminal-card-body">
                                     <div id="seasonalityHeatmap" style="overflow-x: auto;">
@@ -1652,8 +1652,8 @@
                         <!-- No Data State -->
                         <div id="seasonalityNoData" style="text-align: center; padding: 60px 20px; color: #888;">
                             <div style="font-size: 3rem; margin-bottom: 20px;">📊</div>
-                            <h3 style="color: #f7931a; margin-bottom: 10px;">Wähle ein Asset</h3>
-                            <p>Wähle eine Kategorie und ein Asset aus, um die Seasonality-Analyse zu starten</p>
+                            <h3 style="color: #f7931a; margin-bottom: 10px;">Select an Asset</h3>
+                            <p>Choose a category and asset to start the seasonality analysis</p>
                         </div>
                     </div>
                 </div>
@@ -3913,7 +3913,7 @@
             const assetSelect = document.getElementById('seasonalityAsset');
 
             if (!category) {
-                assetSelect.innerHTML = '<option value="">Wähle zuerst Kategorie...</option>';
+                assetSelect.innerHTML = '<option value="">Select category first...</option>';
                 return;
             }
 
@@ -3941,7 +3941,7 @@
             const symbol = document.getElementById('seasonalityAsset').value;
 
             if (!symbol) {
-                alert('Bitte wähle ein Asset aus');
+                alert('Please select an asset');
                 return;
             }
 
@@ -3990,7 +3990,7 @@
                 console.error('Error loading seasonality data:', error);
                 document.getElementById('seasonalityLoading').style.display = 'none';
                 document.getElementById('seasonalityNoData').style.display = 'block';
-                alert('Fehler beim Laden der Seasonality-Daten');
+                alert('Error loading seasonality data. Please try again.');
             }
         }
 
