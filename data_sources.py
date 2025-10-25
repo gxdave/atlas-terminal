@@ -9,6 +9,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import logging
 import time
+from demo_data_generator import PREGENERATED_DATA, get_demo_data
 
 logger = logging.getLogger(__name__)
 
@@ -247,9 +248,22 @@ class DataSourceManager:
             if df is not None and not df.empty:
                 return df, "Twelve Data API (Forex)"
 
-        logger.error(f"❌ All free data sources failed for {symbol}")
-        logger.info(f"Available sources tried: CoinCap (crypto), Twelve Data (stocks/forex), Alpha Vantage (stocks)")
-        return None, None
+        # Strategy 4: Use demo data as final fallback (ALWAYS WORKS)
+        logger.warning(f"All APIs failed for {symbol}, using demo data")
+
+        # Check if we have pre-generated data
+        if symbol in PREGENERATED_DATA:
+            logger.info(f"✅ Using pre-generated demo data for {symbol}")
+            return PREGENERATED_DATA[symbol], "Demo Data (Simulated)"
+
+        # Generate on-the-fly for other symbols
+        try:
+            df = get_demo_data(symbol)
+            logger.info(f"✅ Generated demo data for {symbol}")
+            return df, "Demo Data (Generated)"
+        except Exception as e:
+            logger.error(f"Even demo data generation failed: {str(e)}")
+            return None, None
 
 
 # Global instance

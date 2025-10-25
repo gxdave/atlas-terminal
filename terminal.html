@@ -1570,6 +1570,7 @@
                             <div style="background: #0a0a0a; border: 1px solid #333; border-radius: 5px; padding: 20px; margin-bottom: 20px;">
                                 <h3 style="color: #f7931a; margin-bottom: 15px;">
                                     <span id="selectedAssetName">--</span>
+                                    <span id="dataSourceBadge" style="font-size: 0.7rem; margin-left: 10px; padding: 4px 8px; background: #1a1a1a; border-radius: 3px; color: #888;"></span>
                                 </h3>
                                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
                                     <div>
@@ -3964,6 +3965,21 @@
                 document.getElementById('bestMonths').textContent = data.best_months;
                 document.getElementById('worstMonths').textContent = data.worst_months;
                 document.getElementById('dataRange').textContent = data.data_range;
+
+                // Show data source badge
+                const badge = document.getElementById('dataSourceBadge');
+                if (data.data_source) {
+                    badge.textContent = data.data_source;
+                    if (data.data_source.includes('Demo')) {
+                        badge.style.background = '#4a3520';
+                        badge.style.color = '#f7931a';
+                        badge.title = 'Using simulated data - APIs unavailable';
+                    } else {
+                        badge.style.background = '#1a4a1a';
+                        badge.style.color = '#00ff88';
+                        badge.title = 'Using real market data';
+                    }
+                }
 
                 // Update quarterly performance
                 data.quarterly_performance.forEach((q, index) => {
