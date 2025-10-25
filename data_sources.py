@@ -98,111 +98,157 @@ class DataSourceManager:
             logger.error(f"CoinCap fetch error for {symbol}: {str(e)}")
             return None
 
-    def fetch_alternative_stock_data(self, symbol: str) -> pd.DataFrame:
+    def fetch_twelve_data(self, symbol: str) -> pd.DataFrame:
         """
-        Fetch stock data using alternative free sources
-        Currently using: Financial Modeling Prep (limited free tier)
+        Fetch data from Twelve Data API (800 requests/day free tier, no API key needed)
+        Works for stocks, ETFs, forex, crypto
         """
         try:
-            # Note: This is a free tier with limits
-            # You can add API key for higher limits: https://financialmodelingprep.com
-            logger.info(f"Attempting alternative source for {symbol}...")
+            logger.info(f"Attempting Twelve Data for {symbol}...")
 
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=3650)  # 10 years
-
-            # Free tier FMP endpoint (limited to 250 requests/day)
-            url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{symbol}"
+            # Twelve Data free tier endpoint
+            url = "https://api.twelvedata.com/time_series"
             params = {
-                'from': start_date.strftime('%Y-%m-%d'),
-                'to': end_date.strftime('%Y-%m-%d')
+                'symbol': symbol,
+                'interval': '1day',
+                'outputsize': 5000,  # Max for free tier
+                'format': 'JSON'
             }
 
             response = requests.get(url, params=params, timeout=15)
 
-            if response.status_code == 200:
-                data = response.json()
-                historical = data.get('historical', [])
+            if response.status_code != 200:
+                logger.warning(f"Twelve Data returned {response.status_code}")
+                return None
 
-                if historical:
-                    df = pd.DataFrame(historical)
-                    df['date'] = pd.to_datetime(df['date'])
-                    df.set_index('date', inplace=True)
-                    df.sort_index(inplace=True)
+            data = response.json()
 
-                    # Rename columns to match yfinance format
-                    df = df.rename(columns={
-                        'open': 'Open',
-                        'high': 'High',
-                        'low': 'Low',
-                        'close': 'Close',
-                        'volume': 'Volume'
-                    })
+            if 'values' not in data or not data['values']:
+                logger.warning(f"No data from Twelve Data for {symbol}")
+                return None
 
-                    logger.info(f"✓ FMP: {len(df)} records for {symbol}")
-                    return df[['Open', 'High', 'Low', 'Close', 'Volume']]
+            # Convert to DataFrame
+            df = pd.DataFrame(data['values'])
+            df['datetime'] = pd.to_datetime(df['datetime'])
+            df.set_index('datetime', inplace=True)
+            df.sort_index(inplace=True)
 
-            logger.warning(f"FMP returned status {response.status_code} for {symbol}")
-            return None
+            # Convert string values to float
+            for col in ['open', 'high', 'low', 'close', 'volume']:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+
+            # Rename columns
+            df = df.rename(columns={
+                'open': 'Open',
+                'high': 'High',
+                'low': 'Low',
+                'close': 'Close',
+                'volume': 'Volume'
+            })
+
+            logger.info(f"✓ Twelve Data: {len(df)} records for {symbol}")
+            return df[['Open', 'High', 'Low', 'Close', 'Volume']]
 
         except Exception as e:
-            logger.warning(f"Alternative stock fetch failed for {symbol}: {str(e)}")
+            logger.warning(f"Twelve Data fetch failed for {symbol}: {str(e)}")
+            return None
+
+    def fetch_alpha_vantage_stock(self, symbol: str) -> pd.DataFrame:
+        """
+        Fetch stock data from Alpha Vantage (500 requests/day, free API key)
+        API Key: Get from https://www.alphavantage.co/support/#api-key
+        """
+        try:
+            logger.info(f"Attempting Alpha Vantage for {symbol}...")
+
+            # Free API key (demo key, limited but works)
+            api_key = "demo"  # Replace with actual key if needed
+
+            url = "https://www.alphavantage.co/query"
+            params = {
+                'function': 'TIME_SERIES_DAILY',
+                'symbol': symbol,
+                'outputsize': 'full',
+                'apikey': api_key
+            }
+
+            response = requests.get(url, params=params, timeout=15)
+
+            if response.status_code != 200:
+                return None
+
+            data = response.json()
+
+            if 'Time Series (Daily)' not in data:
+                logger.warning(f"No time series data from Alpha Vantage for {symbol}")
+                return None
+
+            # Convert to DataFrame
+            time_series = data['Time Series (Daily)']
+            df = pd.DataFrame.from_dict(time_series, orient='index')
+            df.index = pd.to_datetime(df.index)
+            df.sort_index(inplace=True)
+
+            # Rename columns
+            df = df.rename(columns={
+                '1. open': 'Open',
+                '2. high': 'High',
+                '3. low': 'Low',
+                '4. close': 'Close',
+                '5. volume': 'Volume'
+            })
+
+            # Convert to numeric
+            for col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+
+            logger.info(f"✓ Alpha Vantage: {len(df)} records for {symbol}")
+            return df[['Open', 'High', 'Low', 'Close', 'Volume']]
+
+        except Exception as e:
+            logger.warning(f"Alpha Vantage fetch failed for {symbol}: {str(e)}")
             return None
 
     def fetch_with_fallback(self, symbol: str) -> tuple:
         """
-        Fetch data with automatic fallback between sources
+        Fetch data with automatic fallback between FREE sources ONLY
+        NO yfinance - it's blocked on cloud servers
         Returns (DataFrame, source_name)
         """
-        # Strategy 1: For crypto, try CoinCap first (completely free, no API key)
+        # Strategy 1: For crypto, use CoinCap (completely free, no API key)
         if '-USD' in symbol:
             logger.info(f"Crypto detected: {symbol}")
             df = self.fetch_coincap_data(symbol)
             if df is not None and not df.empty:
-                return df, "CoinCap API (Free)"
+                return df, "CoinCap API"
 
-        # Strategy 2: For stocks/ETFs, try yfinance directly (most reliable for stocks)
+        # Strategy 2: For stocks/ETFs, try Twelve Data (800 req/day, free)
         if not symbol.endswith('=X') and '-USD' not in symbol:
             logger.info(f"Stock/ETF detected: {symbol}")
-            try:
-                import yfinance as yf
-                time.sleep(0.3)
 
-                ticker = yf.Ticker(symbol)
+            # Try Twelve Data first
+            df = self.fetch_twelve_data(symbol)
+            if df is not None and not df.empty and len(df) > 100:
+                return df, "Twelve Data API"
 
-                # Try different periods
-                for period in ['10y', '5y', '3y', '2y']:
-                    try:
-                        hist = ticker.history(period=period)
-                        if not hist.empty and len(hist) > 100:  # Ensure meaningful data
-                            logger.info(f"✓ yfinance ({period}): {len(hist)} records for {symbol}")
-                            return hist, f"yfinance ({period})"
-                    except:
-                        continue
-            except Exception as e:
-                logger.warning(f"yfinance failed for stock {symbol}: {str(e)}")
+            # Try Alpha Vantage as fallback
+            df = self.fetch_alpha_vantage_stock(symbol)
+            if df is not None and not df.empty and len(df) > 100:
+                return df, "Alpha Vantage API"
 
-        # Strategy 3: yfinance as fallback for other assets
-        logger.info(f"Trying yfinance fallback for {symbol}...")
-        try:
-            import yfinance as yf
-            time.sleep(0.5)
+        # Strategy 3: For forex, try Twelve Data (supports forex)
+        if symbol.endswith('=X'):
+            logger.info(f"Forex detected: {symbol}")
+            # Convert symbol format for Twelve Data (e.g., EURUSD=X -> EUR/USD)
+            forex_symbol = symbol.replace('=X', '').replace('USD', '/USD')
 
-            ticker = yf.Ticker(symbol)
+            df = self.fetch_twelve_data(forex_symbol)
+            if df is not None and not df.empty:
+                return df, "Twelve Data API (Forex)"
 
-            for period in ['max', '10y', '5y']:
-                try:
-                    hist = ticker.history(period=period)
-                    if not hist.empty:
-                        logger.info(f"✓ yfinance ({period}): {len(hist)} records for {symbol}")
-                        return hist, f"yfinance ({period})"
-                except:
-                    continue
-
-        except Exception as e:
-            logger.warning(f"Final yfinance attempt failed for {symbol}: {str(e)}")
-
-        logger.error(f"❌ All data sources failed for {symbol}")
+        logger.error(f"❌ All free data sources failed for {symbol}")
+        logger.info(f"Available sources tried: CoinCap (crypto), Twelve Data (stocks/forex), Alpha Vantage (stocks)")
         return None, None
 
 

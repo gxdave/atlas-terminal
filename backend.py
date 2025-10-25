@@ -2464,7 +2464,7 @@ async def get_seasonality(symbol: str):
         if hist is None or hist.empty:
             raise HTTPException(
                 status_code=503,
-                detail=f"Unable to fetch data for {symbol}. All data sources (CoinGecko, Financial Modeling Prep, yfinance) are currently unavailable or rate-limited. Please try again in a few minutes."
+                detail=f"Unable to fetch data for {symbol}. All free data sources (CoinCap for crypto, Twelve Data & Alpha Vantage for stocks) failed. This may be due to rate limits. Please try again in a few minutes or select a different asset."
             )
 
         logger.info(f"Using {data_source} for {symbol} seasonality analysis")
@@ -2542,15 +2542,8 @@ async def get_seasonality(symbol: str):
                 year_data[month_names[month - 1]] = round(month_return, 2) if month_return is not None else None
             heatmap.append(year_data)
 
-        # Get asset name
+        # Get asset name (just use symbol since we don't use yfinance anymore)
         asset_name = symbol
-        try:
-            if data_source and 'yfinance' in data_source:
-                ticker = yf.Ticker(symbol)
-                if hasattr(ticker, 'info') and ticker.info:
-                    asset_name = ticker.info.get('longName', symbol)
-        except:
-            pass
 
         return {
             "symbol": symbol,
