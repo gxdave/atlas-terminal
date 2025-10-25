@@ -2380,6 +2380,167 @@ async def get_sentiment_data():
         logger.error(f"Error fetching sentiment data: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch sentiment data: {str(e)}")
 
+# ===== SEASONALITY ENDPOINTS =====
+
+@app.get("/api/seasonality/assets")
+async def get_seasonality_assets():
+    """
+    Get available assets for seasonality analysis grouped by category
+    """
+    assets = {
+        "forex": [
+            {"symbol": "EURUSD=X", "name": "EUR/USD"},
+            {"symbol": "GBPUSD=X", "name": "GBP/USD"},
+            {"symbol": "USDJPY=X", "name": "USD/JPY"},
+            {"symbol": "AUDUSD=X", "name": "AUD/USD"},
+            {"symbol": "USDCHF=X", "name": "USD/CHF"},
+            {"symbol": "USDCAD=X", "name": "USD/CAD"},
+            {"symbol": "NZDUSD=X", "name": "NZD/USD"}
+        ],
+        "crypto": [
+            {"symbol": "BTC-USD", "name": "Bitcoin"},
+            {"symbol": "ETH-USD", "name": "Ethereum"},
+            {"symbol": "BNB-USD", "name": "Binance Coin"},
+            {"symbol": "XRP-USD", "name": "Ripple"},
+            {"symbol": "ADA-USD", "name": "Cardano"},
+            {"symbol": "SOL-USD", "name": "Solana"},
+            {"symbol": "DOGE-USD", "name": "Dogecoin"}
+        ],
+        "commodities": [
+            {"symbol": "GC=F", "name": "Gold"},
+            {"symbol": "SI=F", "name": "Silver"},
+            {"symbol": "CL=F", "name": "Crude Oil"},
+            {"symbol": "NG=F", "name": "Natural Gas"},
+            {"symbol": "HG=F", "name": "Copper"},
+            {"symbol": "PL=F", "name": "Platinum"}
+        ],
+        "indices": [
+            {"symbol": "^GSPC", "name": "S&P 500"},
+            {"symbol": "^DJI", "name": "Dow Jones"},
+            {"symbol": "^IXIC", "name": "NASDAQ"},
+            {"symbol": "^GDAXI", "name": "DAX"},
+            {"symbol": "^FTSE", "name": "FTSE 100"},
+            {"symbol": "^N225", "name": "Nikkei 225"}
+        ],
+        "stocks": [
+            {"symbol": "AAPL", "name": "Apple"},
+            {"symbol": "MSFT", "name": "Microsoft"},
+            {"symbol": "GOOGL", "name": "Google"},
+            {"symbol": "AMZN", "name": "Amazon"},
+            {"symbol": "TSLA", "name": "Tesla"},
+            {"symbol": "NVDA", "name": "NVIDIA"},
+            {"symbol": "META", "name": "Meta"}
+        ]
+    }
+    return assets
+
+@app.get("/api/seasonality/{symbol}")
+async def get_seasonality(symbol: str):
+    """
+    Calculate seasonality data for a given symbol
+    Returns monthly average returns, quarterly performance, and historical heatmap
+    """
+    try:
+        # Fetch historical data (last 10 years)
+        ticker = yf.Ticker(symbol)
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=365 * 10)
+
+        hist = ticker.history(start=start_date, end=end_date)
+
+        if hist.empty:
+            raise HTTPException(status_code=404, detail=f"No data available for {symbol}")
+
+        # Calculate monthly returns
+        hist['Year'] = hist.index.year
+        hist['Month'] = hist.index.month
+        hist['MonthName'] = hist.index.strftime('%B')
+        hist['Quarter'] = hist.index.quarter
+
+        # Calculate monthly percentage changes
+        monthly_data = []
+        for year in hist['Year'].unique():
+            for month in range(1, 13):
+                month_data = hist[(hist['Year'] == year) & (hist['Month'] == month)]
+                if len(month_data) > 1:
+                    first_price = month_data['Close'].iloc[0]
+                    last_price = month_data['Close'].iloc[-1]
+                    pct_change = ((last_price - first_price) / first_price) * 100
+                    monthly_data.append({
+                        'year': int(year),
+                        'month': int(month),
+                        'return': float(pct_change)
+                    })
+
+        # Calculate average returns per month
+        month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        monthly_avg = []
+        for month in range(1, 13):
+            month_returns = [d['return'] for d in monthly_data if d['month'] == month]
+            if month_returns:
+                avg_return = np.mean(month_returns)
+                win_rate = (sum(1 for r in month_returns if r > 0) / len(month_returns)) * 100
+                monthly_avg.append({
+                    'month': month_names[month - 1],
+                    'avg_return': round(float(avg_return), 2),
+                    'win_rate': round(float(win_rate), 1),
+                    'count': len(month_returns)
+                })
+
+        # Calculate quarterly performance
+        quarterly_data = []
+        for quarter in range(1, 5):
+            quarter_returns = []
+            for year in hist['Year'].unique():
+                quarter_data = hist[(hist['Year'] == year) & (hist['Quarter'] == quarter)]
+                if len(quarter_data) > 1:
+                    first_price = quarter_data['Close'].iloc[0]
+                    last_price = quarter_data['Close'].iloc[-1]
+                    pct_change = ((last_price - first_price) / first_price) * 100
+                    quarter_returns.append(pct_change)
+
+            if quarter_returns:
+                quarterly_data.append({
+                    'quarter': f'Q{quarter}',
+                    'avg_return': round(float(np.mean(quarter_returns)), 2),
+                    'win_rate': round((sum(1 for r in quarter_returns if r > 0) / len(quarter_returns)) * 100, 1)
+                })
+
+        # Find best and worst months
+        sorted_months = sorted(monthly_avg, key=lambda x: x['avg_return'], reverse=True)
+        best_months = ', '.join([m['month'] for m in sorted_months[:3]])
+        worst_months = ', '.join([m['month'] for m in sorted_months[-3:]])
+
+        # Get current price
+        current_price = float(hist['Close'].iloc[-1])
+
+        # Build heatmap data (Year x Month grid)
+        years = sorted(hist['Year'].unique(), reverse=True)[:10]  # Last 10 years
+        heatmap = []
+        for year in years:
+            year_data = {'year': int(year)}
+            for month in range(1, 13):
+                month_return = next((d['return'] for d in monthly_data if d['year'] == year and d['month'] == month), None)
+                year_data[month_names[month - 1]] = round(month_return, 2) if month_return is not None else None
+            heatmap.append(year_data)
+
+        return {
+            "symbol": symbol,
+            "name": ticker.info.get('longName', symbol) if hasattr(ticker, 'info') else symbol,
+            "current_price": round(current_price, 2),
+            "best_months": best_months,
+            "worst_months": worst_months,
+            "data_range": f"{int(hist['Year'].min())} - {int(hist['Year'].max())}",
+            "monthly_seasonality": monthly_avg,
+            "quarterly_performance": quarterly_data,
+            "heatmap": heatmap,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Error calculating seasonality for {symbol}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to calculate seasonality: {str(e)}")
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
