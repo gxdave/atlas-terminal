@@ -9,6 +9,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import logging
 import time
+import os
 from demo_data_generator import PREGENERATED_DATA, get_demo_data
 
 logger = logging.getLogger(__name__)
@@ -157,14 +158,17 @@ class DataSourceManager:
 
     def fetch_alpha_vantage_stock(self, symbol: str) -> pd.DataFrame:
         """
-        Fetch stock data from Alpha Vantage (500 requests/day, free API key)
-        API Key: Get from https://www.alphavantage.co/support/#api-key
+        Fetch stock data from Alpha Vantage using API key from environment
+        Uses the same key as Probability Analyzer
         """
         try:
             logger.info(f"Attempting Alpha Vantage for {symbol}...")
 
-            # Free API key (demo key, limited but works)
-            api_key = "demo"  # Replace with actual key if needed
+            # Get API key from environment (same as probability analyzer)
+            api_key = os.environ.get("ALPHAVANTAGE_API_KEY", "demo")
+
+            if api_key == "demo":
+                logger.warning("Using demo API key - may have severe rate limits")
 
             url = "https://www.alphavantage.co/query"
             params = {
@@ -174,15 +178,22 @@ class DataSourceManager:
                 'apikey': api_key
             }
 
-            response = requests.get(url, params=params, timeout=15)
+            response = requests.get(url, params=params, timeout=20)
 
             if response.status_code != 200:
+                logger.warning(f"Alpha Vantage HTTP {response.status_code}")
                 return None
 
             data = response.json()
 
+            # Check for rate limit message
+            if 'Note' in data or 'Information' in data:
+                logger.warning(f"Alpha Vantage rate limit or info: {data.get('Note', data.get('Information'))}")
+                return None
+
             if 'Time Series (Daily)' not in data:
                 logger.warning(f"No time series data from Alpha Vantage for {symbol}")
+                logger.debug(f"Response keys: {list(data.keys())}")
                 return None
 
             # Convert to DataFrame
@@ -204,7 +215,7 @@ class DataSourceManager:
             for col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
 
-            logger.info(f"✓ Alpha Vantage: {len(df)} records for {symbol}")
+            logger.info(f"✅ Alpha Vantage: {len(df)} records for {symbol}")
             return df[['Open', 'High', 'Low', 'Close', 'Volume']]
 
         except Exception as e:
@@ -224,19 +235,19 @@ class DataSourceManager:
             if df is not None and not df.empty:
                 return df, "CoinCap API"
 
-        # Strategy 2: For stocks/ETFs, try Twelve Data (800 req/day, free)
+        # Strategy 2: For stocks/ETFs, try Alpha Vantage FIRST (has API key)
         if not symbol.endswith('=X') and '-USD' not in symbol:
             logger.info(f"Stock/ETF detected: {symbol}")
 
-            # Try Twelve Data first
-            df = self.fetch_twelve_data(symbol)
-            if df is not None and not df.empty and len(df) > 100:
-                return df, "Twelve Data API"
-
-            # Try Alpha Vantage as fallback
+            # Try Alpha Vantage FIRST (we have API key)
             df = self.fetch_alpha_vantage_stock(symbol)
             if df is not None and not df.empty and len(df) > 100:
                 return df, "Alpha Vantage API"
+
+            # Try Twelve Data as fallback
+            df = self.fetch_twelve_data(symbol)
+            if df is not None and not df.empty and len(df) > 100:
+                return df, "Twelve Data API"
 
         # Strategy 3: For forex, try Twelve Data (supports forex)
         if symbol.endswith('=X'):
