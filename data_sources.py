@@ -156,9 +156,10 @@ class DataSourceManager:
             logger.warning(f"Twelve Data fetch failed for {symbol}: {str(e)}")
             return None
 
-    def fetch_alpha_vantage_stock(self, symbol: str) -> pd.DataFrame:
+    def fetch_alpha_vantage_data(self, symbol: str) -> pd.DataFrame:
         """
-        Fetch stock data from Alpha Vantage using API key from environment
+        Fetch data from Alpha Vantage using API key from environment
+        Works for stocks, ETFs, forex, commodities
         Uses the same key as Probability Analyzer
         """
         try:
@@ -170,13 +171,38 @@ class DataSourceManager:
             if api_key == "demo":
                 logger.warning("Using demo API key - may have severe rate limits")
 
-            url = "https://www.alphavantage.co/query"
-            params = {
-                'function': 'TIME_SERIES_DAILY',
-                'symbol': symbol,
-                'outputsize': 'full',
-                'apikey': api_key
-            }
+            # Determine if it's forex
+            is_forex = symbol.endswith('=X') or '/' in symbol
+
+            # Convert symbol format for forex
+            if is_forex:
+                # Convert EURUSD=X to EUR/USD format
+                clean_symbol = symbol.replace('=X', '')
+                if '/' not in clean_symbol and len(clean_symbol) == 6:
+                    # EURUSD -> EUR/USD
+                    forex_symbol = f"{clean_symbol[:3]}/{clean_symbol[3:]}"
+                else:
+                    forex_symbol = clean_symbol
+
+                logger.info(f"Forex detected: {symbol} -> {forex_symbol}")
+
+                url = "https://www.alphavantage.co/query"
+                params = {
+                    'function': 'FX_DAILY',
+                    'from_symbol': forex_symbol.split('/')[0],
+                    'to_symbol': forex_symbol.split('/')[1],
+                    'outputsize': 'full',
+                    'apikey': api_key
+                }
+            else:
+                # Regular stocks/ETFs
+                url = "https://www.alphavantage.co/query"
+                params = {
+                    'function': 'TIME_SERIES_DAILY',
+                    'symbol': symbol,
+                    'outputsize': 'full',
+                    'apikey': api_key
+                }
 
             response = requests.get(url, params=params, timeout=20)
 
@@ -191,25 +217,40 @@ class DataSourceManager:
                 logger.warning(f"Alpha Vantage rate limit or info: {data.get('Note', data.get('Information'))}")
                 return None
 
-            if 'Time Series (Daily)' not in data:
+            # Get the time series key (different for stocks vs forex)
+            if is_forex:
+                ts_key = 'Time Series FX (Daily)'
+            else:
+                ts_key = 'Time Series (Daily)'
+
+            if ts_key not in data:
                 logger.warning(f"No time series data from Alpha Vantage for {symbol}")
                 logger.debug(f"Response keys: {list(data.keys())}")
                 return None
 
             # Convert to DataFrame
-            time_series = data['Time Series (Daily)']
+            time_series = data[ts_key]
             df = pd.DataFrame.from_dict(time_series, orient='index')
             df.index = pd.to_datetime(df.index)
             df.sort_index(inplace=True)
 
-            # Rename columns
-            df = df.rename(columns={
-                '1. open': 'Open',
-                '2. high': 'High',
-                '3. low': 'Low',
-                '4. close': 'Close',
-                '5. volume': 'Volume'
-            })
+            # Rename columns (different naming for stocks vs forex)
+            if is_forex:
+                df = df.rename(columns={
+                    '1. open': 'Open',
+                    '2. high': 'High',
+                    '3. low': 'Low',
+                    '4. close': 'Close'
+                })
+                df['Volume'] = 0  # Forex doesn't have volume
+            else:
+                df = df.rename(columns={
+                    '1. open': 'Open',
+                    '2. high': 'High',
+                    '3. low': 'Low',
+                    '4. close': 'Close',
+                    '5. volume': 'Volume'
+                })
 
             # Convert to numeric
             for col in df.columns:
@@ -224,8 +265,7 @@ class DataSourceManager:
 
     def fetch_with_fallback(self, symbol: str) -> tuple:
         """
-        Fetch data with automatic fallback between FREE sources ONLY
-        NO yfinance - it's blocked on cloud servers
+        Fetch data using Alpha Vantage for everything (except crypto)
         Returns (DataFrame, source_name)
         """
         # Strategy 1: For crypto, use CoinCap (completely free, no API key)
@@ -235,29 +275,19 @@ class DataSourceManager:
             if df is not None and not df.empty:
                 return df, "CoinCap API"
 
-        # Strategy 2: For stocks/ETFs, try Alpha Vantage FIRST (has API key)
-        if not symbol.endswith('=X') and '-USD' not in symbol:
-            logger.info(f"Stock/ETF detected: {symbol}")
+        # Strategy 2: For EVERYTHING ELSE, use Alpha Vantage (has API key)
+        # Works for: Stocks, ETFs, Forex, Commodities
+        logger.info(f"Using Alpha Vantage for {symbol}")
+        df = self.fetch_alpha_vantage_data(symbol)
+        if df is not None and not df.empty and len(df) > 100:
+            asset_type = "Forex" if symbol.endswith('=X') else "Stock"
+            return df, f"Alpha Vantage API ({asset_type})"
 
-            # Try Alpha Vantage FIRST (we have API key)
-            df = self.fetch_alpha_vantage_stock(symbol)
-            if df is not None and not df.empty and len(df) > 100:
-                return df, "Alpha Vantage API"
-
-            # Try Twelve Data as fallback
-            df = self.fetch_twelve_data(symbol)
-            if df is not None and not df.empty and len(df) > 100:
-                return df, "Twelve Data API"
-
-        # Strategy 3: For forex, try Twelve Data (supports forex)
-        if symbol.endswith('=X'):
-            logger.info(f"Forex detected: {symbol}")
-            # Convert symbol format for Twelve Data (e.g., EURUSD=X -> EUR/USD)
-            forex_symbol = symbol.replace('=X', '').replace('USD', '/USD')
-
-            df = self.fetch_twelve_data(forex_symbol)
-            if df is not None and not df.empty:
-                return df, "Twelve Data API (Forex)"
+        # Strategy 3: Try Twelve Data as fallback
+        logger.info(f"Alpha Vantage failed, trying Twelve Data for {symbol}")
+        df = self.fetch_twelve_data(symbol)
+        if df is not None and not df.empty and len(df) > 100:
+            return df, "Twelve Data API"
 
         # Strategy 4: Use demo data as final fallback (ALWAYS WORKS)
         logger.warning(f"All APIs failed for {symbol}, using demo data")
