@@ -29,6 +29,9 @@ from auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES, DB_PATH
 )
 
+# Import data sources
+from data_sources import get_historical_data
+
 # Add Prob_Analyzer path
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../Prob_Analyzer'))
 
@@ -2451,59 +2454,20 @@ async def get_seasonality_assets():
 @app.get("/api/seasonality/{symbol}")
 async def get_seasonality(symbol: str):
     """
-    Calculate seasonality data for a given symbol
+    Calculate seasonality data for a given symbol using multiple data sources
     Returns monthly average returns, quarterly performance, and historical heatmap
     """
     try:
-        # Symbol alternatives for problematic tickers
-        symbol_alternatives = {
-            'EURUSD=X': ['EURUSD=X', 'EUR=X', 'EURUSD'],
-            'GBPUSD=X': ['GBPUSD=X', 'GBP=X', 'GBPUSD'],
-            'USDJPY=X': ['USDJPY=X', 'JPY=X', 'USDJPY'],
-            'AUDUSD=X': ['AUDUSD=X', 'AUD=X', 'AUDUSD'],
-            'USDCHF=X': ['USDCHF=X', 'CHF=X', 'USDCHF'],
-            'USDCAD=X': ['USDCAD=X', 'CAD=X', 'USDCAD'],
-            'NZDUSD=X': ['NZDUSD=X', 'NZD=X', 'NZDUSD'],
-        }
-
-        # Try different symbol variations
-        symbols_to_try = symbol_alternatives.get(symbol, [symbol])
-        hist = None
-        successful_symbol = symbol
-        ticker = None
-
-        for try_symbol in symbols_to_try:
-            try:
-                logger.info(f"Attempting to fetch data for: {try_symbol}")
-                ticker = yf.Ticker(try_symbol)
-                end_date = datetime.now()
-                start_date = end_date - timedelta(days=365 * 10)
-
-                # Use download method as fallback
-                hist = yf.download(try_symbol, start=start_date, end=end_date, progress=False)
-
-                if not hist.empty:
-                    successful_symbol = try_symbol
-                    logger.info(f"Successfully fetched data for: {try_symbol}")
-                    break
-            except Exception as e:
-                logger.warning(f"Failed to fetch {try_symbol}: {str(e)}")
-                continue
-
-        if hist is None or hist.empty:
-            # Try one more time with a shorter period (5 years instead of 10)
-            try:
-                logger.info(f"Trying shorter period for {symbol}")
-                start_date = datetime.now() - timedelta(days=365 * 5)
-                hist = yf.download(symbol, start=start_date, end=datetime.now(), progress=False)
-            except Exception as e:
-                logger.error(f"All attempts failed for {symbol}: {str(e)}")
+        # Fetch data using fallback system
+        hist, data_source = get_historical_data(symbol)
 
         if hist is None or hist.empty:
             raise HTTPException(
-                status_code=404,
-                detail=f"No data available for {symbol}. Tried alternatives: {', '.join(symbols_to_try)}. This may be due to API rate limits or symbol changes. Please try again later or try a different asset."
+                status_code=503,
+                detail=f"Unable to fetch data for {symbol}. All data sources (CoinGecko, Financial Modeling Prep, yfinance) are currently unavailable or rate-limited. Please try again in a few minutes."
             )
+
+        logger.info(f"Using {data_source} for {symbol} seasonality analysis")
 
         # Calculate monthly returns
         hist['Year'] = hist.index.year
@@ -2578,13 +2542,24 @@ async def get_seasonality(symbol: str):
                 year_data[month_names[month - 1]] = round(month_return, 2) if month_return is not None else None
             heatmap.append(year_data)
 
+        # Get asset name
+        asset_name = symbol
+        try:
+            if data_source and 'yfinance' in data_source:
+                ticker = yf.Ticker(symbol)
+                if hasattr(ticker, 'info') and ticker.info:
+                    asset_name = ticker.info.get('longName', symbol)
+        except:
+            pass
+
         return {
             "symbol": symbol,
-            "name": ticker.info.get('longName', symbol) if hasattr(ticker, 'info') else symbol,
+            "name": asset_name,
             "current_price": round(current_price, 2),
             "best_months": best_months,
             "worst_months": worst_months,
             "data_range": f"{int(hist['Year'].min())} - {int(hist['Year'].max())}",
+            "data_source": data_source,
             "monthly_seasonality": monthly_avg,
             "quarterly_performance": quarterly_data,
             "heatmap": heatmap,
