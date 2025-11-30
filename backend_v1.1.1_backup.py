@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Atlas Terminal API",
     description="Backend API für Atlas Terminal mit Probability Analyzer",
-    version="1.1.2"
+    version="1.1.1"
 )
 
 # CORS Middleware - Allow all origins for public access
@@ -1833,224 +1833,163 @@ async def get_economic_data(country: str):
 
 @app.get("/api/cot-data")
 async def get_cot_data():
-    """Get COT (Commitment of Traders) data for institutional positioning - V1.1.2"""
+    """Get COT (Commitment of Traders) data for institutional positioning"""
     try:
         import requests
 
-        # Get optional NASDAQ API key from environment
-        nasdaq_api_key = os.environ.get("NASDAQ_API_KEY", "")
+        logger.info("Fetching COT data from CFTC Socrata API...")
 
-        # NASDAQ/Quandl CFTC codes for major instruments
-        # Format: CFTC/CODE_FO_ALL (Futures Only, All data)
-        nasdaq_instruments = {
-            'EURUSD': {'code': '099741', 'name': 'EUR'},
-            'GBPUSD': {'code': '096742', 'name': 'GBP'},
-            'USDJPY': {'code': '097741', 'name': 'JPY'},
-            'AUDUSD': {'code': '232741', 'name': 'AUD'},
-            'USDCAD': {'code': '090741', 'name': 'CAD'},
-            'USDCHF': {'code': '092741', 'name': 'CHF'},
-            'GOLD': {'code': '088691', 'name': 'Gold'},
-            'SILVER': {'code': '084691', 'name': 'Silver'},
-            'CRUDE_OIL': {'code': '067651', 'name': 'Oil'},
-            'SP500': {'code': '13874A', 'name': 'SPX'},
-            'NASDAQ': {'code': '209742', 'name': 'NASDAQ'},
-            'DOW': {'code': '124603', 'name': 'DOW'},
-            'NIKKEI': {'code': '240741', 'name': 'NIKKEI'},
-            'USD_INDEX': {'code': '098662', 'name': 'USD'}
+        # CFTC Socrata Open Data API - Disaggregated Futures (No API key needed!)
+        # https://publicreporting.cftc.gov/resource/6dca-aqww.json
+        base_url = "https://publicreporting.cftc.gov/resource/6dca-aqww.json"
+
+        # Key instruments to track with their CFTC names
+        instruments_map = {
+            'USD INDEX': 'USD',
+            'EURO FX': 'EUR',
+            'BRITISH POUND': 'GBP',
+            'JAPANESE YEN': 'JPY',
+            'SWISS FRANC': 'CHF',
+            'CANADIAN DOLLAR': 'CAD',
+            'AUSTRALIAN DOLLAR': 'AUD',
+            'E-MINI S&P 500': 'SPX',
+            'NASDAQ-100': 'NASDAQ',
+            'DOW JONES': 'DOW',
+            'GOLD': 'Gold',
+            'SILVER': 'Silver',
+            'PLATINUM': 'PLATINUM',
+            'CRUDE OIL': 'Oil',
+            'COPPER': 'COPPER',
+            'NIKKEI': 'NIKKEI'
         }
 
         cot_results = []
 
-        # Try NASDAQ Data Link API first (more reliable)
-        if nasdaq_api_key:
-            logger.info("Fetching COT data from NASDAQ Data Link API...")
-
-            try:
-                for instrument_key, info in nasdaq_instruments.items():
-                    try:
-                        # NASDAQ Data Link API endpoint
-                        url = f"https://data.nasdaq.com/api/v3/datasets/CFTC/{info['code']}_FO_ALL.json"
-                        params = {
-                            'api_key': nasdaq_api_key,
-                            'limit': 2,  # Get latest 2 weeks for comparison
-                            'order': 'desc'
-                        }
-
-                        response = requests.get(url, params=params, timeout=10)
-
-                        if response.status_code == 200:
-                            data = response.json()
-                            dataset = data.get('dataset', {})
-                            dataset_data = dataset.get('data', [])
-
-                            if len(dataset_data) >= 2:
-                                latest = dataset_data[0]
-                                previous = dataset_data[1]
-
-                                # Column indices (NASDAQ format)
-                                # [0]=Date, [1]=Open Interest, [2]=Dealer Long, [3]=Dealer Short,
-                                # [4]=Asset Manager Long, [5]=Asset Manager Short,
-                                # [6]=Leveraged Long, [7]=Leveraged Short, etc.
-
-                                # Non-Commercial = Leveraged Funds (speculative positions)
-                                nc_long_latest = float(latest[6] if len(latest) > 6 else 0)
-                                nc_short_latest = float(latest[7] if len(latest) > 7 else 0)
-                                nc_long_prev = float(previous[6] if len(previous) > 6 else 0)
-                                nc_short_prev = float(previous[7] if len(previous) > 7 else 0)
-
-                                open_interest = float(latest[1] if len(latest) > 1 else 1)
-
-                                # Calculate net positioning
-                                net_latest = nc_long_latest - nc_short_latest
-                                net_previous = nc_long_prev - nc_short_prev
-                                net_change = net_latest - net_previous
-
-                                cot_results.append({
-                                    'instrument': info['name'],
-                                    'report_date': latest[0],
-                                    'non_commercial': {
-                                        'long': int(nc_long_latest),
-                                        'short': int(nc_short_latest),
-                                        'net': int(net_latest),
-                                        'net_percent_of_oi': round((net_latest / open_interest * 100) if open_interest > 0 else 0, 2)
-                                    },
-                                    'change_from_previous': {
-                                        'net': int(net_change),
-                                        'net_percent_change': round((net_change / abs(net_previous) * 100) if net_previous != 0 else 0, 2)
-                                    },
-                                    'open_interest': int(open_interest)
-                                })
-
-                    except Exception as e:
-                        logger.warning(f"Failed to fetch {info['name']} from NASDAQ: {e}")
-                        continue
-
-                if cot_results:
-                    logger.info(f"✓ COT data fetched from NASDAQ: {len(cot_results)} instruments")
-
-            except Exception as e:
-                logger.error(f"NASDAQ API error: {e}")
-
-        # Fallback to CFTC direct API if NASDAQ fails or no API key
-        if not cot_results:
-            logger.info("Fetching COT data from CFTC direct API...")
-
-            try:
-                # CFTC Disaggregated Futures API
-                base_url = "https://publicreporting.cftc.gov/resource/jun7-fc8e.json"
-
-                params = {
-                    '$limit': 500,
-                    '$order': 'report_date_as_yyyy_mm_dd DESC'
-                }
-
-                response = requests.get(base_url, params=params, timeout=30)
-
-                if response.status_code == 200:
-                    data = response.json()
-
-                    # Map CFTC market names to display names
-                    cftc_map = {
-                        'EURO FX': 'EUR',
-                        'BRITISH POUND': 'GBP',
-                        'JAPANESE YEN': 'JPY',
-                        'SWISS FRANC': 'CHF',
-                        'CANADIAN DOLLAR': 'CAD',
-                        'AUSTRALIAN DOLLAR': 'AUD',
-                        'GOLD': 'Gold',
-                        'SILVER': 'Silver',
-                        'CRUDE OIL': 'Oil',
-                        'E-MINI S&P': 'SPX',
-                        'NASDAQ': 'NASDAQ',
-                        'DOW': 'DOW',
-                        'USD INDEX': 'USD'
-                    }
-
-                    for cftc_pattern, display_name in cftc_map.items():
-                        matching = [r for r in data if cftc_pattern in r.get('market_and_exchange_names', '').upper()]
-
-                        if len(matching) >= 2:
-                            latest = matching[0]
-                            previous = matching[1]
-
-                            nc_long_latest = float(latest.get('noncomm_positions_long_all', 0))
-                            nc_short_latest = float(latest.get('noncomm_positions_short_all', 0))
-                            nc_long_prev = float(previous.get('noncomm_positions_long_all', 0))
-                            nc_short_prev = float(previous.get('noncomm_positions_short_all', 0))
-
-                            net_latest = nc_long_latest - nc_short_latest
-                            net_previous = nc_long_prev - nc_short_prev
-                            net_change = net_latest - net_previous
-
-                            open_interest = float(latest.get('open_interest_all', 1))
-
-                            cot_results.append({
-                                'instrument': display_name,
-                                'report_date': latest.get('report_date_as_yyyy_mm_dd', ''),
-                                'non_commercial': {
-                                    'long': int(nc_long_latest),
-                                    'short': int(nc_short_latest),
-                                    'net': int(net_latest),
-                                    'net_percent_of_oi': round((net_latest / open_interest * 100) if open_interest > 0 else 0, 2)
-                                },
-                                'change_from_previous': {
-                                    'net': int(net_change),
-                                    'net_percent_change': round((net_change / abs(net_previous) * 100) if net_previous != 0 else 0, 2)
-                                },
-                                'open_interest': int(open_interest)
-                            })
-
-                    if cot_results:
-                        logger.info(f"✓ COT data fetched from CFTC: {len(cot_results)} instruments")
-
-            except Exception as e:
-                logger.error(f"CFTC API error: {e}")
-
-        # Transform to frontend format
-        if cot_results:
-            assets = []
-            for item in cot_results:
-                nc = item['non_commercial']
-                change = item['change_from_previous']
-
-                total_positions = nc['long'] + nc['short']
-                long_pct = (nc['long'] / total_positions * 100) if total_positions > 0 else 0
-                short_pct = (nc['short'] / total_positions * 100) if total_positions > 0 else 0
-
-                assets.append({
-                    'name': item['instrument'],
-                    'longContracts': nc['long'],
-                    'shortContracts': nc['short'],
-                    'deltaLong': change['net'] if change['net'] > 0 else 0,
-                    'deltaShort': abs(change['net']) if change['net'] < 0 else 0,
-                    'longPct': round(long_pct, 2),
-                    'shortPct': round(short_pct, 2),
-                    'netChange': change['net_percent_change'],
-                    'netPosition': nc['net'],
-                    'openInterest': int(item.get('open_interest', total_positions) / 1000),
-                    'deltaOI': change['net']
-                })
-
-            return {
-                'status': 'success',
-                'source': 'NASDAQ' if nasdaq_api_key and cot_results else 'CFTC',
-                'last_update': cot_results[0]['report_date'] if cot_results else datetime.now().isoformat(),
-                'assets': assets
+        try:
+            # Fetch recent data (last 1000 records to ensure we get all instruments)
+            # Sort by report date descending to get most recent first
+            params = {
+                '$limit': 1000,
+                '$order': 'report_date_as_yyyy_mm_dd DESC'
             }
 
-        # Final fallback: Demo data
-        logger.warning("Using demo COT data (APIs unavailable)")
+            response = requests.get(base_url, params=params, timeout=30)
+
+            if response.status_code == 200:
+                data = response.json()
+
+                if not data:
+                    raise Exception("Empty response from CFTC API")
+
+                logger.info(f"Received {len(data)} records from CFTC")
+
+                # Group data by instrument
+                for cftc_pattern, display_name in instruments_map.items():
+                    # Find matching instruments
+                    matching_records = [
+                        record for record in data
+                        if cftc_pattern.upper() in record.get('market_and_exchange_names', '').upper()
+                    ]
+
+                    if len(matching_records) >= 2:
+                        # Get two most recent reports for this instrument
+                        latest = matching_records[0]
+                        previous = matching_records[1]
+
+                        # Non-Commercial positions (Hedge Funds, Large Speculators)
+                        nc_long_latest = float(latest.get('noncomm_positions_long_all', 0))
+                        nc_short_latest = float(latest.get('noncomm_positions_short_all', 0))
+                        nc_long_prev = float(previous.get('noncomm_positions_long_all', 0))
+                        nc_short_prev = float(previous.get('noncomm_positions_short_all', 0))
+
+                        # Calculate net positioning
+                        net_latest = nc_long_latest - nc_short_latest
+                        net_previous = nc_long_prev - nc_short_prev
+                        net_change = net_latest - net_previous
+
+                        # Calculate percentage of open interest
+                        open_interest = float(latest.get('open_interest_all', 1))
+                        net_percent = (net_latest / open_interest * 100) if open_interest > 0 else 0
+
+                        cot_results.append({
+                            'instrument': display_name,
+                            'report_date': latest.get('report_date_as_yyyy_mm_dd', ''),
+                            'non_commercial': {
+                                'long': int(nc_long_latest),
+                                'short': int(nc_short_latest),
+                                'net': int(net_latest),
+                                'net_percent_of_oi': round(net_percent, 2)
+                            },
+                            'change_from_previous': {
+                                'net': int(net_change),
+                                'net_percent_change': round((net_change / abs(net_previous) * 100) if net_previous != 0 else 0, 2)
+                            },
+                            'sentiment': 'BULLISH' if net_latest > 0 else 'BEARISH' if net_latest < 0 else 'NEUTRAL',
+                            'trend': 'INCREASING' if net_change > 0 else 'DECREASING' if net_change < 0 else 'UNCHANGED'
+                        })
+                    elif matching_records:
+                        logger.warning(f"Only {len(matching_records)} record(s) found for {cftc_pattern}")
+
+                if cot_results:
+                    logger.info(f"✓ COT data fetched successfully: {len(cot_results)} instruments")
+
+                    # Transform data to match frontend format
+                    assets = []
+                    for item in cot_results:
+                        nc = item['non_commercial']
+                        change = item['change_from_previous']
+
+                        total_positions = nc['long'] + nc['short']
+                        long_pct = (nc['long'] / total_positions * 100) if total_positions > 0 else 0
+                        short_pct = (nc['short'] / total_positions * 100) if total_positions > 0 else 0
+
+                        assets.append({
+                            'name': item['instrument'],
+                            'longContracts': nc['long'],
+                            'shortContracts': nc['short'],
+                            'deltaLong': change['net'] if change['net'] > 0 else 0,
+                            'deltaShort': change['net'] if change['net'] < 0 else 0,
+                            'longPct': round(long_pct, 2),
+                            'shortPct': round(short_pct, 2),
+                            'netChange': change['net_percent_change'],
+                            'netPosition': nc['net'],
+                            'openInterest': int(total_positions / 1000),  # in thousands
+                            'deltaOI': change['net']
+                        })
+
+                    return {
+                        'status': 'success',
+                        'last_update': cot_results[0]['report_date'] if cot_results else datetime.now().isoformat(),
+                        'assets': assets
+                    }
+                else:
+                    logger.warning("No COT data found for tracked instruments")
+            else:
+                logger.error(f"CFTC API returned status code: {response.status_code}")
+                raise Exception(f"API returned {response.status_code}")
+
+        except Exception as e:
+            logger.error(f"Error fetching COT data from CFTC: {e}")
+
+        # Fallback: Mock data for demo (in frontend format)
+        logger.warning("Using mock COT data (CFTC API unavailable)")
+        mock_assets = [
+            { 'name': 'DOW', 'longContracts': 13217, 'shortContracts': 13194, 'deltaLong': 6036, 'deltaShort': -3330, 'longPct': 50.04, 'shortPct': 49.96, 'netChange': 19.75, 'netPosition': 23, 'openInterest': 78000, 'deltaOI': -20238 },
+            { 'name': 'CHF', 'longContracts': 8227, 'shortContracts': 31245, 'deltaLong': 1992, 'deltaShort': -1030, 'longPct': 20.84, 'shortPct': 79.16, 'netChange': 4.65, 'netPosition': -23018, 'openInterest': 72000, 'deltaOI': 300 },
+            { 'name': 'PLATINUM', 'longContracts': 56669, 'shortContracts': 34627, 'deltaLong': 2608, 'deltaShort': -4231, 'longPct': 62.07, 'shortPct': 37.93, 'netChange': 3.89, 'netPosition': 22042, 'openInterest': 98000, 'deltaOI': -2311 },
+            { 'name': 'USD', 'longContracts': 14032, 'shortContracts': 24376, 'deltaLong': 1541, 'deltaShort': -1009, 'longPct': 36.53, 'shortPct': 63.47, 'netChange': 3.56, 'netPosition': -10344, 'openInterest': 40000, 'deltaOI': 1915 },
+            { 'name': 'SPX', 'longContracts': 229106, 'shortContracts': 401946, 'deltaLong': 8211, 'deltaShort': -41896, 'longPct': 36.31, 'shortPct': 63.69, 'netChange': 3.07, 'netPosition': -172840, 'openInterest': 1964000, 'deltaOI': -503588 },
+            { 'name': 'JPY', 'longContracts': 176400, 'shortContracts': 96900, 'deltaLong': 14727, 'deltaShort': -3362, 'longPct': 64.54, 'shortPct': 35.46, 'netChange': 2.82, 'netPosition': 79500, 'openInterest': 310000, 'deltaOI': 10273 },
+            { 'name': 'NIKKEI', 'longContracts': 10828, 'shortContracts': 2519, 'deltaLong': 863, 'deltaShort': -133, 'longPct': 81.13, 'shortPct': 18.87, 'netChange': 2.15, 'netPosition': 8309, 'openInterest': 29000, 'deltaOI': -572 },
+            { 'name': 'NASDAQ', 'longContracts': 89971, 'shortContracts': 66566, 'deltaLong': -214, 'deltaShort': -5813, 'longPct': 57.48, 'shortPct': 42.52, 'netChange': 2.0, 'netPosition': 23405, 'openInterest': 275000, 'deltaOI': -76726 },
+            { 'name': 'EUR', 'longContracts': 125000, 'shortContracts': 95000, 'deltaLong': 5000, 'deltaShort': 0, 'longPct': 56.82, 'shortPct': 43.18, 'netChange': 20.0, 'netPosition': 30000, 'openInterest': 220000, 'deltaOI': 5000 },
+            { 'name': 'Gold', 'longContracts': 250000, 'shortContracts': 150000, 'deltaLong': 15000, 'deltaShort': 0, 'longPct': 62.5, 'shortPct': 37.5, 'netChange': 17.6, 'netPosition': 100000, 'openInterest': 400000, 'deltaOI': 15000 }
+        ]
+
         return {
-            'status': 'demo',
-            'source': 'demo',
+            'status': 'success',
             'last_update': (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d'),
-            'message': 'Add NASDAQ_API_KEY environment variable for real-time data (free at data.nasdaq.com)',
-            'assets': [
-                { 'name': 'EUR', 'longContracts': 125000, 'shortContracts': 95000, 'deltaLong': 5000, 'deltaShort': 0, 'longPct': 56.82, 'shortPct': 43.18, 'netChange': 20.0, 'netPosition': 30000, 'openInterest': 220000, 'deltaOI': 5000 },
-                { 'name': 'Gold', 'longContracts': 250000, 'shortContracts': 150000, 'deltaLong': 15000, 'deltaShort': 0, 'longPct': 62.5, 'shortPct': 37.5, 'netChange': 17.6, 'netPosition': 100000, 'openInterest': 400000, 'deltaOI': 15000 },
-                { 'name': 'JPY', 'longContracts': 176400, 'shortContracts': 96900, 'deltaLong': 14727, 'deltaShort': 0, 'longPct': 64.54, 'shortPct': 35.46, 'netChange': 2.82, 'netPosition': 79500, 'openInterest': 273300, 'deltaOI': 10273 },
-                { 'name': 'SPX', 'longContracts': 229106, 'shortContracts': 401946, 'deltaLong': 0, 'deltaShort': 33685, 'longPct': 36.31, 'shortPct': 63.69, 'netChange': 3.07, 'netPosition': -172840, 'openInterest': 631052, 'deltaOI': -33685 }
-            ]
+            'assets': mock_assets
         }
 
     except Exception as e:
