@@ -1861,8 +1861,82 @@ async def get_cot_data():
 
         cot_results = []
 
-        # Try NASDAQ Data Link API first (more reliable)
-        if nasdaq_api_key:
+        # Try CFTC Direct API first (most reliable and free)
+        logger.info("Fetching COT data from CFTC direct API...")
+
+        try:
+            # CFTC Disaggregated Futures API
+            base_url = "https://publicreporting.cftc.gov/resource/jun7-fc8e.json"
+
+            params = {
+                '$limit': 500,
+                '$order': 'report_date_as_yyyy_mm_dd DESC'
+            }
+
+            response = requests.get(base_url, params=params, timeout=30)
+
+            if response.status_code == 200:
+                data = response.json()
+
+                # Map CFTC market names to display names (exact match patterns)
+                cftc_map = {
+                    'EURO FX': 'EUR',
+                    'BRITISH POUND': 'GBP',
+                    'JAPANESE YEN': 'JPY',
+                    'SWISS FRANC': 'CHF',
+                    'CANADIAN DOLLAR': 'CAD',
+                    'AUSTRALIAN DOLLAR': 'AUD',
+                    'GOLD': 'Gold',
+                    'SILVER': 'Silver',
+                    'CRUDE OIL': 'Oil',
+                    'E-MINI S&P 500 - CHICAGO MERCANTILE': 'SPX',  # Precise match for S&P 500
+                    'NASDAQ': 'NASDAQ',
+                    'DOW': 'DOW',
+                    'USD INDEX': 'USD'
+                }
+
+                for cftc_pattern, display_name in cftc_map.items():
+                    matching = [r for r in data if cftc_pattern in r.get('market_and_exchange_names', '').upper()]
+
+                    if len(matching) >= 2:
+                        latest = matching[0]
+                        previous = matching[1]
+
+                        nc_long_latest = float(latest.get('noncomm_positions_long_all', 0))
+                        nc_short_latest = float(latest.get('noncomm_positions_short_all', 0))
+                        nc_long_prev = float(previous.get('noncomm_positions_long_all', 0))
+                        nc_short_prev = float(previous.get('noncomm_positions_short_all', 0))
+
+                        net_latest = nc_long_latest - nc_short_latest
+                        net_previous = nc_long_prev - nc_short_prev
+                        net_change = net_latest - net_previous
+
+                        open_interest = float(latest.get('open_interest_all', 1))
+
+                        cot_results.append({
+                            'instrument': display_name,
+                            'report_date': latest.get('report_date_as_yyyy_mm_dd', ''),
+                            'non_commercial': {
+                                'long': int(nc_long_latest),
+                                'short': int(nc_short_latest),
+                                'net': int(net_latest),
+                                'net_percent_of_oi': round((net_latest / open_interest * 100) if open_interest > 0 else 0, 2)
+                            },
+                            'change_from_previous': {
+                                'net': int(net_change),
+                                'net_percent_change': round((net_change / abs(net_previous) * 100) if net_previous != 0 else 0, 2)
+                            },
+                            'open_interest': int(open_interest)
+                        })
+
+                if cot_results:
+                    logger.info(f"✓ COT data fetched from CFTC: {len(cot_results)} instruments")
+
+        except Exception as e:
+            logger.error(f"CFTC API error: {e}")
+
+        # Try NASDAQ Data Link API as alternative (if CFTC failed and API key available)
+        if not cot_results and nasdaq_api_key:
             logger.info("Fetching COT data from NASDAQ Data Link API...")
 
             try:
@@ -1931,80 +2005,6 @@ async def get_cot_data():
             except Exception as e:
                 logger.error(f"NASDAQ API error: {e}")
 
-        # Fallback to CFTC direct API if NASDAQ fails or no API key
-        if not cot_results:
-            logger.info("Fetching COT data from CFTC direct API...")
-
-            try:
-                # CFTC Disaggregated Futures API
-                base_url = "https://publicreporting.cftc.gov/resource/jun7-fc8e.json"
-
-                params = {
-                    '$limit': 500,
-                    '$order': 'report_date_as_yyyy_mm_dd DESC'
-                }
-
-                response = requests.get(base_url, params=params, timeout=30)
-
-                if response.status_code == 200:
-                    data = response.json()
-
-                    # Map CFTC market names to display names
-                    cftc_map = {
-                        'EURO FX': 'EUR',
-                        'BRITISH POUND': 'GBP',
-                        'JAPANESE YEN': 'JPY',
-                        'SWISS FRANC': 'CHF',
-                        'CANADIAN DOLLAR': 'CAD',
-                        'AUSTRALIAN DOLLAR': 'AUD',
-                        'GOLD': 'Gold',
-                        'SILVER': 'Silver',
-                        'CRUDE OIL': 'Oil',
-                        'E-MINI S&P': 'SPX',
-                        'NASDAQ': 'NASDAQ',
-                        'DOW': 'DOW',
-                        'USD INDEX': 'USD'
-                    }
-
-                    for cftc_pattern, display_name in cftc_map.items():
-                        matching = [r for r in data if cftc_pattern in r.get('market_and_exchange_names', '').upper()]
-
-                        if len(matching) >= 2:
-                            latest = matching[0]
-                            previous = matching[1]
-
-                            nc_long_latest = float(latest.get('noncomm_positions_long_all', 0))
-                            nc_short_latest = float(latest.get('noncomm_positions_short_all', 0))
-                            nc_long_prev = float(previous.get('noncomm_positions_long_all', 0))
-                            nc_short_prev = float(previous.get('noncomm_positions_short_all', 0))
-
-                            net_latest = nc_long_latest - nc_short_latest
-                            net_previous = nc_long_prev - nc_short_prev
-                            net_change = net_latest - net_previous
-
-                            open_interest = float(latest.get('open_interest_all', 1))
-
-                            cot_results.append({
-                                'instrument': display_name,
-                                'report_date': latest.get('report_date_as_yyyy_mm_dd', ''),
-                                'non_commercial': {
-                                    'long': int(nc_long_latest),
-                                    'short': int(nc_short_latest),
-                                    'net': int(net_latest),
-                                    'net_percent_of_oi': round((net_latest / open_interest * 100) if open_interest > 0 else 0, 2)
-                                },
-                                'change_from_previous': {
-                                    'net': int(net_change),
-                                    'net_percent_change': round((net_change / abs(net_previous) * 100) if net_previous != 0 else 0, 2)
-                                },
-                                'open_interest': int(open_interest)
-                            })
-
-                    if cot_results:
-                        logger.info(f"✓ COT data fetched from CFTC: {len(cot_results)} instruments")
-
-            except Exception as e:
-                logger.error(f"CFTC API error: {e}")
 
         # Transform to frontend format
         if cot_results:
@@ -2033,7 +2033,7 @@ async def get_cot_data():
 
             return {
                 'status': 'success',
-                'source': 'NASDAQ' if nasdaq_api_key and cot_results else 'CFTC',
+                'source': 'CFTC',
                 'last_update': cot_results[0]['report_date'] if cot_results else datetime.now().isoformat(),
                 'assets': assets
             }
