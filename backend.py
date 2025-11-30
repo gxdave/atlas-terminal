@@ -1115,8 +1115,9 @@ async def delete_widget(
 # EXISTING ENDPOINTS
 # ============================================
 
-@app.get("/")
-async def root():
+@app.get("/api/info")
+async def api_info():
+    """API information endpoint"""
     return {
         "message": "Atlas Terminal API v1.1.1",
         "status": "running",
