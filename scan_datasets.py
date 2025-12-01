@@ -6,8 +6,11 @@ import json
 from pathlib import Path
 from datetime import datetime
 
-# Path to Data folder
-DATA_ROOT = Path("C:/Users/dgauc/OneDrive/Desktop/Coding/Data")
+# Path to datasets folder (now local in project)
+DATA_ROOT = Path("data/datasets")
+
+# Only include these timeframes
+ALLOWED_TIMEFRAMES = ['D1', 'H1', 'M1']
 
 def get_file_size_mb(filepath):
     """Get file size in MB"""
@@ -30,6 +33,10 @@ def scan_datasets():
 
         # Extract timeframe from filename
         timeframe = filename.replace(".csv", "").split("_")[-1]
+
+        # Skip if not in allowed timeframes
+        if timeframe not in ALLOWED_TIMEFRAMES:
+            continue
 
         dataset_info = {
             "id": str(relative_path).replace("\\", "/").replace(".csv", ""),

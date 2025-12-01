@@ -2629,8 +2629,8 @@ async def get_seasonality(symbol: str):
 # HOSTED DATASETS API - V1.1.2
 # ============================================
 
-# Path to Data folder (local for development, can be configured for production)
-DATA_ROOT = os.environ.get("DATA_ROOT_PATH", "C:/Users/dgauc/OneDrive/Desktop/Coding/Data")
+# Path to datasets folder (now included in project - D1, H1, M1 only)
+DATA_ROOT = os.environ.get("DATA_ROOT_PATH", "data/datasets")
 
 @app.get("/api/datasets")
 async def list_datasets():
