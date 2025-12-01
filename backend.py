@@ -2693,10 +2693,23 @@ async def get_dataset(dataset_id: str):
 @app.post("/api/analyze/hosted")
 async def analyze_hosted_dataset(request: Dict[str, Any]):
     """Analyze a hosted dataset without requiring file upload"""
+    global analyzer_instance
+
     try:
         dataset_id = request.get('dataset_id')
+        pattern = request.get('pattern')
+
         if not dataset_id:
             raise HTTPException(status_code=400, detail="dataset_id is required")
+        if not pattern:
+            raise HTTPException(status_code=400, detail="pattern is required")
+
+        # Get instrument and timeframe from dataset_id
+        parts = dataset_id.split('/')
+        instrument = parts[0] if len(parts) > 0 else "Unknown"
+        timeframe = parts[-1].split('_')[-1] if len(parts) > 1 else "Unknown"
+
+        logger.info(f"Analyzing hosted dataset: {dataset_id} with pattern {pattern}")
 
         # Construct file path
         csv_path = os.path.join(DATA_ROOT, f"{dataset_id}.csv")
@@ -2704,43 +2717,98 @@ async def analyze_hosted_dataset(request: Dict[str, Any]):
         if not os.path.exists(csv_path):
             raise HTTPException(status_code=404, detail=f"Dataset not found: {dataset_id}")
 
-        # Load CSV
-        df = pd.read_csv(csv_path)
+        # Load CSV (try tab-separated first, then comma-separated)
+        # Your datasets use tab-separated format with extra trailing tabs
+        try:
+            df = pd.read_csv(csv_path, sep='\t', header=0, index_col=False)
+        except:
+            try:
+                df = pd.read_csv(csv_path)
+            except Exception as e:
+                logger.error(f"Failed to load CSV: {str(e)}")
+                raise HTTPException(status_code=400, detail=f"Failed to parse CSV file: {str(e)}")
 
-        # Get instrument and timeframe from dataset_id
-        parts = dataset_id.split('/')
-        instrument = parts[0] if len(parts) > 0 else "Unknown"
-        timeframe = parts[-1].split('_')[-1] if len(parts) > 1 else "Unknown"
+        # Process data to match yfinance format
+        # Detect Time column (could be 'Time', 'time', 'Date', etc.)
+        time_col = None
+        for col in ['Time', 'time', 'Date', 'date', 'timestamp', 'Timestamp']:
+            if col in df.columns:
+                time_col = col
+                break
 
-        logger.info(f"Analyzing hosted dataset: {dataset_id} ({len(df)} rows)")
+        if time_col is None:
+            # Log available columns for debugging
+            logger.error(f"Available columns: {list(df.columns)}")
+            raise HTTPException(status_code=400, detail=f"No time column found in dataset. Available columns: {list(df.columns)}")
 
-        # TODO: Integrate with Prob_Analyzer logic here
-        # For now, return placeholder data matching frontend expectations
+        # Rename to standard format
+        df = df.rename(columns={time_col: 'Date'})
+        df['Date'] = pd.to_datetime(df['Date'])
+        df.set_index('Date', inplace=True)
+        df.sort_index(inplace=True)
 
-        # Get pattern from request
-        pattern = request.get('pattern', ['Bullish'])
+        # Ensure OHLC columns exist
+        required_cols = ['Open', 'High', 'Low', 'Close']
+        for col in required_cols:
+            if col not in df.columns:
+                raise HTTPException(status_code=400, detail=f"Missing required column: {col}")
 
-        # Placeholder analysis result
-        analysis_result = {
-            "dataset_id": dataset_id,
-            "symbol": instrument,
-            "timeframe": timeframe,
-            "total_matches": 0,
-            "next_bullish": 0,
-            "next_bearish": 0,
-            "bullish_probability": 0.0,
-            "bearish_probability": 0.0,
-            "data_info": {
-                "total_candles": len(df),
-                "date_range": {
-                    "start": str(df.iloc[0].get('Time', df.iloc[0].get('time', df.iloc[0].get('timestamp', 'N/A')))),
-                    "end": str(df.iloc[-1].get('Time', df.iloc[-1].get('time', df.iloc[-1].get('timestamp', 'N/A'))))
+        # Convert to numeric
+        for col in required_cols:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+        # Remove NaN rows
+        df = df.dropna(subset=required_cols)
+
+        if len(df) < 10:
+            raise HTTPException(
+                status_code=400,
+                detail="Nicht genügend historische Daten verfügbar"
+            )
+
+        # Initialize analyzer and set data directly
+        analyzer_instance = ProbabilityAnalyzer()
+        analyzer_instance.data = df
+        analyzer_instance.symbol = instrument
+        analyzer_instance.timeframe = timeframe
+
+        # Add candle types (required for analysis)
+        analyzer_instance.data['Candle_Type'] = analyzer_instance.data.apply(
+            lambda row: 'Bullish' if row['Close'] > row['Open']
+            else ('Bearish' if row['Close'] < row['Open'] else 'Doji'),
+            axis=1
+        )
+
+        # Calculate probabilities using existing logic
+        results = analyzer_instance.calculate_probabilities(pattern)
+
+        # Prepare response (same format as /api/analyze)
+        response = {
+            'dataset_id': dataset_id,
+            'total_matches': results['total_matches'],
+            'next_bullish': results['next_bullish'],
+            'next_bearish': results['next_bearish'],
+            'bullish_probability': round(results['bullish_probability'], 2),
+            'bearish_probability': round(results['bearish_probability'], 2),
+            'symbol': instrument,
+            'timeframe': timeframe,
+            'pattern': pattern,
+            'data_info': {
+                'total_candles': len(df),
+                'date_range': {
+                    'start': df.index[0].strftime('%Y-%m-%d'),
+                    'end': df.index[-1].strftime('%Y-%m-%d')
+                },
+                'candle_types': {
+                    'bullish': int(sum(df['Candle_Type'] == 'Bullish')),
+                    'bearish': int(sum(df['Candle_Type'] == 'Bearish')),
+                    'doji': int(sum(df['Candle_Type'] == 'Doji'))
                 }
-            },
-            "message": "⚠️ Placeholder response - Prob_Analyzer integration pending"
+            }
         }
 
-        return analysis_result
+        logger.info(f"Analysis complete: {results['total_matches']} matches found")
+        return response
 
     except HTTPException:
         raise
