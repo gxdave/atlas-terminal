@@ -2625,6 +2625,119 @@ async def get_seasonality(symbol: str):
         logger.error(f"Error calculating seasonality for {symbol}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to calculate seasonality: {str(e)}")
 
+# ============================================
+# HOSTED DATASETS API - V1.1.2
+# ============================================
+
+# Path to Data folder (local for development, can be configured for production)
+DATA_ROOT = os.environ.get("DATA_ROOT_PATH", "C:/Users/dgauc/OneDrive/Desktop/Coding/Data")
+
+@app.get("/api/datasets")
+async def list_datasets():
+    """List all available hosted datasets"""
+    try:
+        # Load metadata
+        metadata_path = "data/metadata.json"
+        if os.path.exists(metadata_path):
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+            return metadata
+        else:
+            # Fallback: scan datasets dynamically
+            logger.warning("Metadata file not found, scanning datasets...")
+            return {
+                "total_datasets": 0,
+                "total_size_mb": 0,
+                "last_updated": datetime.now().isoformat(),
+                "instruments": [],
+                "timeframes": [],
+                "datasets": [],
+                "message": "No datasets available. Run scan_datasets.py to generate metadata."
+            }
+    except Exception as e:
+        logger.error(f"Error listing datasets: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to list datasets: {str(e)}")
+
+@app.get("/api/datasets/{dataset_id:path}")
+async def get_dataset(dataset_id: str):
+    """Load a specific dataset by ID (e.g., EURUSD/EURUSD_H1)"""
+    try:
+        # Construct file path
+        csv_path = os.path.join(DATA_ROOT, f"{dataset_id}.csv")
+
+        if not os.path.exists(csv_path):
+            raise HTTPException(status_code=404, detail=f"Dataset not found: {dataset_id}")
+
+        # Load CSV
+        df = pd.read_csv(csv_path)
+
+        # Get basic info
+        file_size_mb = round(os.path.getsize(csv_path) / (1024 * 1024), 2)
+
+        return {
+            "dataset_id": dataset_id,
+            "rows": len(df),
+            "columns": list(df.columns),
+            "size_mb": file_size_mb,
+            "first_date": str(df.iloc[0].get('time', df.iloc[0].get('timestamp', 'N/A'))),
+            "last_date": str(df.iloc[-1].get('time', df.iloc[-1].get('timestamp', 'N/A'))),
+            "sample": df.head(10).to_dict(orient='records')
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error loading dataset {dataset_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to load dataset: {str(e)}")
+
+@app.post("/api/analyze/hosted")
+async def analyze_hosted_dataset(request: Dict[str, Any]):
+    """Analyze a hosted dataset without requiring file upload"""
+    try:
+        dataset_id = request.get('dataset_id')
+        if not dataset_id:
+            raise HTTPException(status_code=400, detail="dataset_id is required")
+
+        # Construct file path
+        csv_path = os.path.join(DATA_ROOT, f"{dataset_id}.csv")
+
+        if not os.path.exists(csv_path):
+            raise HTTPException(status_code=404, detail=f"Dataset not found: {dataset_id}")
+
+        # Load CSV
+        df = pd.read_csv(csv_path)
+
+        # Get instrument and timeframe from dataset_id
+        parts = dataset_id.split('/')
+        instrument = parts[0] if len(parts) > 0 else "Unknown"
+        timeframe = parts[-1].split('_')[-1] if len(parts) > 1 else "Unknown"
+
+        logger.info(f"Analyzing hosted dataset: {dataset_id} ({len(df)} rows)")
+
+        # Perform analysis (placeholder - integrate with your Prob_Analyzer logic)
+        analysis_result = {
+            "dataset_id": dataset_id,
+            "instrument": instrument,
+            "timeframe": timeframe,
+            "total_rows": len(df),
+            "date_range": {
+                "start": str(df.iloc[0].get('time', df.iloc[0].get('timestamp', 'N/A'))),
+                "end": str(df.iloc[-1].get('time', df.iloc[-1].get('timestamp', 'N/A')))
+            },
+            "analysis": {
+                "status": "completed",
+                "message": "Analysis placeholder - integrate with Prob_Analyzer"
+            }
+        }
+
+        return analysis_result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error analyzing hosted dataset: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to analyze dataset: {str(e)}")
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""

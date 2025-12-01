@@ -1,0 +1,540 @@
+{
+  "total_datasets": 57,
+  "total_size_mb": 240.08,
+  "last_updated": "2025-12-01T21:52:36.073850",
+  "instruments": [
+    "USDJPY",
+    "BTCUSD",
+    "EURUSD",
+    "USDCAD",
+    "XAUUSD",
+    "GBPUSD",
+    "USDCHF",
+    "US500"
+  ],
+  "timeframes": [
+    "H4",
+    "M5",
+    "H1",
+    "LIMITED",
+    "M15",
+    "M1",
+    "D1",
+    "M30"
+  ],
+  "datasets": [
+    {
+      "id": "BTCUSD/BTCUSD_D1",
+      "instrument": "BTCUSD",
+      "timeframe": "D1",
+      "filename": "BTCUSD_D1.csv",
+      "path": "BTCUSD/BTCUSD_D1.csv",
+      "size_mb": 0.16,
+      "last_modified": "2025-11-11T21:54:15.284634"
+    },
+    {
+      "id": "BTCUSD/BTCUSD_H1",
+      "instrument": "BTCUSD",
+      "timeframe": "H1",
+      "filename": "BTCUSD_H1.csv",
+      "path": "BTCUSD/BTCUSD_H1.csv",
+      "size_mb": 3.59,
+      "last_modified": "2025-10-28T20:39:23.411811"
+    },
+    {
+      "id": "BTCUSD/BTCUSD_H4",
+      "instrument": "BTCUSD",
+      "timeframe": "H4",
+      "filename": "BTCUSD_H4.csv",
+      "path": "BTCUSD/BTCUSD_H4.csv",
+      "size_mb": 0.92,
+      "last_modified": "2025-11-11T21:54:14.626611"
+    },
+    {
+      "id": "BTCUSD/BTCUSD_M1",
+      "instrument": "BTCUSD",
+      "timeframe": "M1",
+      "filename": "BTCUSD_M1.csv",
+      "path": "BTCUSD/BTCUSD_M1.csv",
+      "size_mb": 5.95,
+      "last_modified": "2025-10-28T20:39:21.009001"
+    },
+    {
+      "id": "BTCUSD/BTCUSD_M15",
+      "instrument": "BTCUSD",
+      "timeframe": "M15",
+      "filename": "BTCUSD_M15.csv",
+      "path": "BTCUSD/BTCUSD_M15.csv",
+      "size_mb": 5.65,
+      "last_modified": "2025-10-28T20:39:22.298840"
+    },
+    {
+      "id": "BTCUSD/BTCUSD_M30",
+      "instrument": "BTCUSD",
+      "timeframe": "M30",
+      "filename": "BTCUSD_M30.csv",
+      "path": "BTCUSD/BTCUSD_M30.csv",
+      "size_mb": 5.59,
+      "last_modified": "2025-10-28T20:39:22.911294"
+    },
+    {
+      "id": "BTCUSD/BTCUSD_M5",
+      "instrument": "BTCUSD",
+      "timeframe": "M5",
+      "filename": "BTCUSD_M5.csv",
+      "path": "BTCUSD/BTCUSD_M5.csv",
+      "size_mb": 5.8,
+      "last_modified": "2025-10-28T20:39:21.638390"
+    },
+    {
+      "id": "EURUSD/EURUSD_D1",
+      "instrument": "EURUSD",
+      "timeframe": "D1",
+      "filename": "EURUSD_D1.csv",
+      "path": "EURUSD/EURUSD_D1.csv",
+      "size_mb": 0.29,
+      "last_modified": "2025-11-11T21:53:30.801846"
+    },
+    {
+      "id": "EURUSD/EURUSD_H1",
+      "instrument": "EURUSD",
+      "timeframe": "H1",
+      "filename": "EURUSD_H1.csv",
+      "path": "EURUSD/EURUSD_H1.csv",
+      "size_mb": 5.72,
+      "last_modified": "2025-10-28T20:37:02.461274"
+    },
+    {
+      "id": "EURUSD/EURUSD_H4",
+      "instrument": "EURUSD",
+      "timeframe": "H4",
+      "filename": "EURUSD_H4.csv",
+      "path": "EURUSD/EURUSD_H4.csv",
+      "size_mb": 1.49,
+      "last_modified": "2025-11-11T21:53:26.420272"
+    },
+    {
+      "id": "EURUSD/EURUSD_M5_LIMITED",
+      "instrument": "EURUSD",
+      "timeframe": "LIMITED",
+      "filename": "EURUSD_M5_LIMITED.csv",
+      "path": "EURUSD/EURUSD_M5_LIMITED.csv",
+      "size_mb": 0.54,
+      "last_modified": "2025-11-09T21:34:09.890435"
+    },
+    {
+      "id": "EURUSD/EURUSD_M1",
+      "instrument": "EURUSD",
+      "timeframe": "M1",
+      "filename": "EURUSD_M1.csv",
+      "path": "EURUSD/EURUSD_M1.csv",
+      "size_mb": 5.51,
+      "last_modified": "2025-10-28T20:36:45.257848"
+    },
+    {
+      "id": "EURUSD/EURUSD_M15",
+      "instrument": "EURUSD",
+      "timeframe": "M15",
+      "filename": "EURUSD_M15.csv",
+      "path": "EURUSD/EURUSD_M15.csv",
+      "size_mb": 5.66,
+      "last_modified": "2025-10-28T20:36:48.187218"
+    },
+    {
+      "id": "EURUSD/EURUSD_M30",
+      "instrument": "EURUSD",
+      "timeframe": "M30",
+      "filename": "EURUSD_M30.csv",
+      "path": "EURUSD/EURUSD_M30.csv",
+      "size_mb": 5.68,
+      "last_modified": "2025-10-28T20:37:01.709868"
+    },
+    {
+      "id": "EURUSD/EURUSD_M5",
+      "instrument": "EURUSD",
+      "timeframe": "M5",
+      "filename": "EURUSD_M5.csv",
+      "path": "EURUSD/EURUSD_M5.csv",
+      "size_mb": 5.6,
+      "last_modified": "2025-10-28T20:36:47.187148"
+    },
+    {
+      "id": "GBPUSD/GBPUSD_D1",
+      "instrument": "GBPUSD",
+      "timeframe": "D1",
+      "filename": "GBPUSD_D1.csv",
+      "path": "GBPUSD/GBPUSD_D1.csv",
+      "size_mb": 0.3,
+      "last_modified": "2025-11-11T21:54:36.613525"
+    },
+    {
+      "id": "GBPUSD/GBPUSD_H1",
+      "instrument": "GBPUSD",
+      "timeframe": "H1",
+      "filename": "GBPUSD_H1.csv",
+      "path": "GBPUSD/GBPUSD_H1.csv",
+      "size_mb": 5.74,
+      "last_modified": "2025-11-11T21:54:35.548450"
+    },
+    {
+      "id": "GBPUSD/GBPUSD_H4",
+      "instrument": "GBPUSD",
+      "timeframe": "H4",
+      "filename": "GBPUSD_H4.csv",
+      "path": "GBPUSD/GBPUSD_H4.csv",
+      "size_mb": 1.5,
+      "last_modified": "2025-11-11T21:54:35.934807"
+    },
+    {
+      "id": "GBPUSD/GBPUSD_M1",
+      "instrument": "GBPUSD",
+      "timeframe": "M1",
+      "filename": "GBPUSD_M1.csv",
+      "path": "GBPUSD/GBPUSD_M1.csv",
+      "size_mb": 5.51,
+      "last_modified": "2025-11-11T21:54:32.705182"
+    },
+    {
+      "id": "GBPUSD/GBPUSD_M15",
+      "instrument": "GBPUSD",
+      "timeframe": "M15",
+      "filename": "GBPUSD_M15.csv",
+      "path": "GBPUSD/GBPUSD_M15.csv",
+      "size_mb": 5.67,
+      "last_modified": "2025-11-11T21:54:34.285370"
+    },
+    {
+      "id": "GBPUSD/GBPUSD_M30",
+      "instrument": "GBPUSD",
+      "timeframe": "M30",
+      "filename": "GBPUSD_M30.csv",
+      "path": "GBPUSD/GBPUSD_M30.csv",
+      "size_mb": 5.71,
+      "last_modified": "2025-11-11T21:54:34.861855"
+    },
+    {
+      "id": "GBPUSD/GBPUSD_M5",
+      "instrument": "GBPUSD",
+      "timeframe": "M5",
+      "filename": "GBPUSD_M5.csv",
+      "path": "GBPUSD/GBPUSD_M5.csv",
+      "size_mb": 5.6,
+      "last_modified": "2025-11-11T21:54:33.510812"
+    },
+    {
+      "id": "US500/USA500IDXUSD_D1",
+      "instrument": "US500",
+      "timeframe": "D1",
+      "filename": "USA500IDXUSD_D1.csv",
+      "path": "US500/USA500IDXUSD_D1.csv",
+      "size_mb": 0.2,
+      "last_modified": "2025-11-11T21:54:00.806544"
+    },
+    {
+      "id": "US500/USA500IDXUSD_H1",
+      "instrument": "US500",
+      "timeframe": "H1",
+      "filename": "USA500IDXUSD_H1.csv",
+      "path": "US500/USA500IDXUSD_H1.csv",
+      "size_mb": 3.96,
+      "last_modified": "2025-11-11T21:54:04.339560"
+    },
+    {
+      "id": "US500/USA500IDXUSD_H4",
+      "instrument": "US500",
+      "timeframe": "H4",
+      "filename": "USA500IDXUSD_H4.csv",
+      "path": "US500/USA500IDXUSD_H4.csv",
+      "size_mb": 1.11,
+      "last_modified": "2025-11-11T21:54:00.077245"
+    },
+    {
+      "id": "US500/USA500IDXUSD_M1",
+      "instrument": "US500",
+      "timeframe": "M1",
+      "filename": "USA500IDXUSD_M1.csv",
+      "path": "US500/USA500IDXUSD_M1.csv",
+      "size_mb": 6.01,
+      "last_modified": "2025-10-28T20:39:55.907871"
+    },
+    {
+      "id": "US500/USA500IDXUSD_M15",
+      "instrument": "US500",
+      "timeframe": "M15",
+      "filename": "USA500IDXUSD_M15.csv",
+      "path": "US500/USA500IDXUSD_M15.csv",
+      "size_mb": 6.08,
+      "last_modified": "2025-10-28T20:39:57.500049"
+    },
+    {
+      "id": "US500/USA500IDXUSD_M30",
+      "instrument": "US500",
+      "timeframe": "M30",
+      "filename": "USA500IDXUSD_M30.csv",
+      "path": "US500/USA500IDXUSD_M30.csv",
+      "size_mb": 6.0,
+      "last_modified": "2025-10-28T20:39:57.696521"
+    },
+    {
+      "id": "US500/USA500IDXUSD_M5",
+      "instrument": "US500",
+      "timeframe": "M5",
+      "filename": "USA500IDXUSD_M5.csv",
+      "path": "US500/USA500IDXUSD_M5.csv",
+      "size_mb": 5.99,
+      "last_modified": "2025-10-28T20:39:56.606161"
+    },
+    {
+      "id": "USDCAD/USDCAD_D1",
+      "instrument": "USDCAD",
+      "timeframe": "D1",
+      "filename": "USDCAD_D1.csv",
+      "path": "USDCAD/USDCAD_D1.csv",
+      "size_mb": 0.3,
+      "last_modified": "2025-11-11T21:54:49.788980"
+    },
+    {
+      "id": "USDCAD/USDCAD_H1",
+      "instrument": "USDCAD",
+      "timeframe": "H1",
+      "filename": "USDCAD_H1.csv",
+      "path": "USDCAD/USDCAD_H1.csv",
+      "size_mb": 5.75,
+      "last_modified": "2025-11-11T21:54:48.957309"
+    },
+    {
+      "id": "USDCAD/USDCAD_H4",
+      "instrument": "USDCAD",
+      "timeframe": "H4",
+      "filename": "USDCAD_H4.csv",
+      "path": "USDCAD/USDCAD_H4.csv",
+      "size_mb": 1.5,
+      "last_modified": "2025-11-11T21:54:49.337488"
+    },
+    {
+      "id": "USDCAD/USDCAD_M1",
+      "instrument": "USDCAD",
+      "timeframe": "M1",
+      "filename": "USDCAD_M1.csv",
+      "path": "USDCAD/USDCAD_M1.csv",
+      "size_mb": 5.61,
+      "last_modified": "2025-11-11T21:54:46.654538"
+    },
+    {
+      "id": "USDCAD/USDCAD_M15",
+      "instrument": "USDCAD",
+      "timeframe": "M15",
+      "filename": "USDCAD_M15.csv",
+      "path": "USDCAD/USDCAD_M15.csv",
+      "size_mb": 5.73,
+      "last_modified": "2025-11-11T21:54:47.892513"
+    },
+    {
+      "id": "USDCAD/USDCAD_M30",
+      "instrument": "USDCAD",
+      "timeframe": "M30",
+      "filename": "USDCAD_M30.csv",
+      "path": "USDCAD/USDCAD_M30.csv",
+      "size_mb": 5.75,
+      "last_modified": "2025-11-11T21:54:48.434746"
+    },
+    {
+      "id": "USDCAD/USDCAD_M5",
+      "instrument": "USDCAD",
+      "timeframe": "M5",
+      "filename": "USDCAD_M5.csv",
+      "path": "USDCAD/USDCAD_M5.csv",
+      "size_mb": 5.68,
+      "last_modified": "2025-11-11T21:54:47.292691"
+    },
+    {
+      "id": "USDCHF/USDCHF_D1",
+      "instrument": "USDCHF",
+      "timeframe": "D1",
+      "filename": "USDCHF_D1.csv",
+      "path": "USDCHF/USDCHF_D1.csv",
+      "size_mb": 0.3,
+      "last_modified": "2025-11-11T21:54:58.117245"
+    },
+    {
+      "id": "USDCHF/USDCHF_H1",
+      "instrument": "USDCHF",
+      "timeframe": "H1",
+      "filename": "USDCHF_H1.csv",
+      "path": "USDCHF/USDCHF_H1.csv",
+      "size_mb": 5.74,
+      "last_modified": "2025-11-11T21:54:57.288821"
+    },
+    {
+      "id": "USDCHF/USDCHF_H4",
+      "instrument": "USDCHF",
+      "timeframe": "H4",
+      "filename": "USDCHF_H4.csv",
+      "path": "USDCHF/USDCHF_H4.csv",
+      "size_mb": 1.5,
+      "last_modified": "2025-11-11T21:54:57.657874"
+    },
+    {
+      "id": "USDCHF/USDCHF_M1",
+      "instrument": "USDCHF",
+      "timeframe": "M1",
+      "filename": "USDCHF_M1.csv",
+      "path": "USDCHF/USDCHF_M1.csv",
+      "size_mb": 5.52,
+      "last_modified": "2025-11-11T21:54:55.075344"
+    },
+    {
+      "id": "USDCHF/USDCHF_M15",
+      "instrument": "USDCHF",
+      "timeframe": "M15",
+      "filename": "USDCHF_M15.csv",
+      "path": "USDCHF/USDCHF_M15.csv",
+      "size_mb": 5.68,
+      "last_modified": "2025-11-11T21:54:56.184335"
+    },
+    {
+      "id": "USDCHF/USDCHF_M30",
+      "instrument": "USDCHF",
+      "timeframe": "M30",
+      "filename": "USDCHF_M30.csv",
+      "path": "USDCHF/USDCHF_M30.csv",
+      "size_mb": 5.71,
+      "last_modified": "2025-11-11T21:54:56.715869"
+    },
+    {
+      "id": "USDCHF/USDCHF_M5",
+      "instrument": "USDCHF",
+      "timeframe": "M5",
+      "filename": "USDCHF_M5.csv",
+      "path": "USDCHF/USDCHF_M5.csv",
+      "size_mb": 5.62,
+      "last_modified": "2025-11-11T21:54:55.626659"
+    },
+    {
+      "id": "USDJPY/USDJPY_D1",
+      "instrument": "USDJPY",
+      "timeframe": "D1",
+      "filename": "USDJPY_D1.csv",
+      "path": "USDJPY/USDJPY_D1.csv",
+      "size_mb": 0.29,
+      "last_modified": "2025-11-11T21:55:05.530547"
+    },
+    {
+      "id": "USDJPY/USDJPY_H1",
+      "instrument": "USDJPY",
+      "timeframe": "H1",
+      "filename": "USDJPY_H1.csv",
+      "path": "USDJPY/USDJPY_H1.csv",
+      "size_mb": 5.61,
+      "last_modified": "2025-11-11T21:55:04.783269"
+    },
+    {
+      "id": "USDJPY/USDJPY_H4",
+      "instrument": "USDJPY",
+      "timeframe": "H4",
+      "filename": "USDJPY_H4.csv",
+      "path": "USDJPY/USDJPY_H4.csv",
+      "size_mb": 1.47,
+      "last_modified": "2025-11-11T21:55:05.123836"
+    },
+    {
+      "id": "USDJPY/USDJPY_M1",
+      "instrument": "USDJPY",
+      "timeframe": "M1",
+      "filename": "USDJPY_M1.csv",
+      "path": "USDJPY/USDJPY_M1.csv",
+      "size_mb": 5.53,
+      "last_modified": "2025-11-11T21:55:02.821689"
+    },
+    {
+      "id": "USDJPY/USDJPY_M15",
+      "instrument": "USDJPY",
+      "timeframe": "M15",
+      "filename": "USDJPY_M15.csv",
+      "path": "USDJPY/USDJPY_M15.csv",
+      "size_mb": 5.68,
+      "last_modified": "2025-11-11T21:55:03.822629"
+    },
+    {
+      "id": "USDJPY/USDJPY_M30",
+      "instrument": "USDJPY",
+      "timeframe": "M30",
+      "filename": "USDJPY_M30.csv",
+      "path": "USDJPY/USDJPY_M30.csv",
+      "size_mb": 5.69,
+      "last_modified": "2025-11-11T21:55:04.336576"
+    },
+    {
+      "id": "USDJPY/USDJPY_M5",
+      "instrument": "USDJPY",
+      "timeframe": "M5",
+      "filename": "USDJPY_M5.csv",
+      "path": "USDJPY/USDJPY_M5.csv",
+      "size_mb": 5.63,
+      "last_modified": "2025-11-11T21:55:03.342446"
+    },
+    {
+      "id": "XAUUSD/XAUUSD_D1",
+      "instrument": "XAUUSD",
+      "timeframe": "D1",
+      "filename": "XAUUSD_D1.csv",
+      "path": "XAUUSD/XAUUSD_D1.csv",
+      "size_mb": 0.32,
+      "last_modified": "2025-11-11T21:53:45.772404"
+    },
+    {
+      "id": "XAUUSD/XAUUSD_H1",
+      "instrument": "XAUUSD",
+      "timeframe": "H1",
+      "filename": "XAUUSD_H1.csv",
+      "path": "XAUUSD/XAUUSD_H1.csv",
+      "size_mb": 6.07,
+      "last_modified": "2025-10-28T20:38:27.980732"
+    },
+    {
+      "id": "XAUUSD/XAUUSD_H4",
+      "instrument": "XAUUSD",
+      "timeframe": "H4",
+      "filename": "XAUUSD_H4.csv",
+      "path": "XAUUSD/XAUUSD_H4.csv",
+      "size_mb": 1.65,
+      "last_modified": "2025-11-11T21:53:44.813540"
+    },
+    {
+      "id": "XAUUSD/XAUUSD_M1",
+      "instrument": "XAUUSD",
+      "timeframe": "M1",
+      "filename": "XAUUSD_M1.csv",
+      "path": "XAUUSD/XAUUSD_M1.csv",
+      "size_mb": 6.01,
+      "last_modified": "2025-10-28T20:38:22.898342"
+    },
+    {
+      "id": "XAUUSD/XAUUSD_M15",
+      "instrument": "XAUUSD",
+      "timeframe": "M15",
+      "filename": "XAUUSD_M15.csv",
+      "path": "XAUUSD/XAUUSD_M15.csv",
+      "size_mb": 6.1,
+      "last_modified": "2025-10-28T20:38:26.325593"
+    },
+    {
+      "id": "XAUUSD/XAUUSD_M30",
+      "instrument": "XAUUSD",
+      "timeframe": "M30",
+      "filename": "XAUUSD_M30.csv",
+      "path": "XAUUSD/XAUUSD_M30.csv",
+      "size_mb": 6.1,
+      "last_modified": "2025-10-28T20:38:27.180052"
+    },
+    {
+      "id": "XAUUSD/XAUUSD_M5",
+      "instrument": "XAUUSD",
+      "timeframe": "M5",
+      "filename": "XAUUSD_M5.csv",
+      "path": "XAUUSD/XAUUSD_M5.csv",
+      "size_mb": 6.01,
+      "last_modified": "2025-10-28T20:38:25.431728"
+    }
+  ]
+}
