@@ -2714,20 +2714,30 @@ async def analyze_hosted_dataset(request: Dict[str, Any]):
 
         logger.info(f"Analyzing hosted dataset: {dataset_id} ({len(df)} rows)")
 
-        # Perform analysis (placeholder - integrate with your Prob_Analyzer logic)
+        # TODO: Integrate with Prob_Analyzer logic here
+        # For now, return placeholder data matching frontend expectations
+
+        # Get pattern from request
+        pattern = request.get('pattern', ['Bullish'])
+
+        # Placeholder analysis result
         analysis_result = {
             "dataset_id": dataset_id,
-            "instrument": instrument,
+            "symbol": instrument,
             "timeframe": timeframe,
-            "total_rows": len(df),
-            "date_range": {
-                "start": str(df.iloc[0].get('time', df.iloc[0].get('timestamp', 'N/A'))),
-                "end": str(df.iloc[-1].get('time', df.iloc[-1].get('timestamp', 'N/A')))
+            "total_matches": 0,
+            "next_bullish": 0,
+            "next_bearish": 0,
+            "bullish_probability": 0.0,
+            "bearish_probability": 0.0,
+            "data_info": {
+                "total_candles": len(df),
+                "date_range": {
+                    "start": str(df.iloc[0].get('Time', df.iloc[0].get('time', df.iloc[0].get('timestamp', 'N/A')))),
+                    "end": str(df.iloc[-1].get('Time', df.iloc[-1].get('time', df.iloc[-1].get('timestamp', 'N/A'))))
+                }
             },
-            "analysis": {
-                "status": "completed",
-                "message": "Analysis placeholder - integrate with Prob_Analyzer"
-            }
+            "message": "⚠️ Placeholder response - Prob_Analyzer integration pending"
         }
 
         return analysis_result

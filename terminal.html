@@ -2550,8 +2550,17 @@
         function displayResults(data) {
             const resultsContent = document.getElementById('resultsContent');
 
-            if (data.total_matches === 0) {
+            // Show message if provided (e.g., placeholder response)
+            if (data.message) {
                 resultsContent.innerHTML = `
+                    <div class="alert alert-info">
+                        ${data.message}
+                    </div>
+                `;
+            }
+
+            if (data.total_matches === 0) {
+                resultsContent.innerHTML += `
                     <div class="alert alert-info">
                         NO MATCHES FOUND FOR THIS PATTERN
                     </div>
@@ -2559,8 +2568,8 @@
                 return;
             }
 
-            const bullishProb = data.bullish_probability;
-            const bearishProb = data.bearish_probability;
+            const bullishProb = data.bullish_probability || 0;
+            const bearishProb = data.bearish_probability || 0;
 
             resultsContent.innerHTML = `
                 <div class="alert alert-success">ANALYSIS COMPLETE</div>
