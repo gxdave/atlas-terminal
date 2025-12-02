@@ -329,25 +329,23 @@ class YieldSpreadAnalyzer:
                     except Exception as e:
                         logger.warning(f"Failed to fetch {name} from FRED: {e}")
 
-                # Calculate DXY proxy from major currency pairs (more accurate than FRED's trade weighted index)
-                # DXY formula (approximate): 50.14348112 × EUR/USD^(-0.576) × USD/JPY^(0.136) × GBP/USD^(-0.119) × ...
-                # Simplified version using major pairs
+                # Calculate DXY proxy from major currency pairs (ICE Dollar Index formula)
+                # DXY = 50.14348112 × (EUR/USD)^(-0.576) × (USD/JPY)^(0.136) × (GBP/USD)^(-0.119) × ...
+                # Using major pairs only (EUR, JPY, GBP represent ~80% of DXY)
                 if 'EURUSD' in data and 'USDJPY' in data and 'GBPUSD' in data:
                     try:
-                        # Simple DXY proxy: inversely correlated with EUR/USD, correlated with USD/JPY
-                        # Normalize to ~100 scale (DXY typical range)
-                        eurusd_inv = 1 / data['EURUSD']  # USD strength vs EUR
-                        usdjpy_norm = data['USDJPY'] / 100  # Normalize JPY
-                        gbpusd_inv = 1 / data['GBPUSD']  # USD strength vs GBP
-
-                        # Weighted average (EUR=57.6%, JPY=13.6%, GBP=11.9% in actual DXY)
-                        dxy_proxy = (eurusd_inv * 0.576 + usdjpy_norm * 0.136 + gbpusd_inv * 0.119) / 0.835
-
-                        # Scale to match typical DXY range (~100)
-                        dxy_proxy = dxy_proxy * 100
+                        # ICE Dollar Index formula with major currency pairs
+                        # Exponents are negative for EUR/USD and GBP/USD (inverse relationship)
+                        # Positive for USD/JPY (direct relationship)
+                        dxy_proxy = (
+                            50.14348112 *
+                            (data['EURUSD'] ** (-0.576)) *  # EUR/USD with negative exponent
+                            (data['USDJPY'] ** (0.136)) *   # USD/JPY with positive exponent
+                            (data['GBPUSD'] ** (-0.119))    # GBP/USD with negative exponent
+                        )
 
                         data['DXY'] = dxy_proxy
-                        logger.info(f"Calculated DXY proxy from major pairs: {len(dxy_proxy)} data points")
+                        logger.info(f"Calculated DXY proxy from major pairs: {len(dxy_proxy)} data points, latest: {dxy_proxy.iloc[-1]:.2f}")
                     except Exception as e:
                         logger.warning(f"Failed to calculate DXY proxy: {e}")
 
