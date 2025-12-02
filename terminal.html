@@ -991,6 +991,9 @@
             <div class="nav-item" onclick="switchView('seasonality')">
                 <span>Seasonality</span>
             </div>
+            <div class="nav-item" onclick="switchView('yieldspread')">
+                <span>Yield Spread Analyzer</span>
+            </div>
             <div class="nav-item" onclick="switchView('profile')">
                 <span>Profile</span>
             </div>
@@ -1649,6 +1652,103 @@
                             <h3 style="color: #f7931a; margin-bottom: 10px;">Select an Asset</h3>
                             <p>Choose a category and asset to start the seasonality analysis</p>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Yield Spread Analyzer View -->
+            <div class="view" id="yieldspread">
+                <!-- Header Card -->
+                <div class="terminal-card">
+                    <div class="terminal-card-header">
+                        <h2>Yield Spread Analyzer</h2>
+                        <div style="display: flex; gap: 10px;">
+                            <select id="ysPeriodSelect" class="select-control" style="padding: 8px; background: #0a0a0a; color: #f7931a; border: 1px solid #f7931a; font-family: 'Consolas', monospace;">
+                                <option value="1mo">1 Month</option>
+                                <option value="3mo">3 Months</option>
+                                <option value="6mo" selected>6 Months</option>
+                                <option value="1y">1 Year</option>
+                                <option value="2y">2 Years</option>
+                            </select>
+                            <button class="btn btn-small" onclick="loadYieldSpreadAnalysis()" style="padding: 8px 16px;">ANALYZE</button>
+                        </div>
+                    </div>
+                    <div class="terminal-card-body">
+                        <div style="padding: 20px; background: #1a1a1a; border: 1px solid #333; margin-bottom: 20px;">
+                            <p style="color: #888; margin: 0; line-height: 1.6;">
+                                <strong style="color: #f7931a;">MAKRO-ANALYSE-TOOL</strong><br>
+                                Misst die Beziehung zwischen Zinsdifferenzen (Yield Spreads) und US-Dollar-Stärke (DXY).<br>
+                                <em>Neutral. Kalt. Objektiv. Keine Interpretation - nur Messung.</em>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Current Values -->
+                <div class="terminal-card">
+                    <div class="terminal-card-header">
+                        <h2>Current Market Snapshot</h2>
+                    </div>
+                    <div class="terminal-card-body">
+                        <div id="ysLoadingSnapshot" class="loading" style="display: none;">
+                            <div class="spinner"></div>
+                            <p style="color: #888;">LOADING DATA...</p>
+                        </div>
+                        <div id="ysCurrentValues" class="stats-grid"></div>
+                    </div>
+                </div>
+
+                <!-- Alerts -->
+                <div class="terminal-card" id="ysAlertsCard" style="display: none;">
+                    <div class="terminal-card-header">
+                        <h2>Alerts</h2>
+                    </div>
+                    <div class="terminal-card-body">
+                        <div id="ysAlerts"></div>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="terminal-card">
+                    <div class="terminal-card-header">
+                        <h2>Yield Spreads & Dollar Strength</h2>
+                    </div>
+                    <div class="terminal-card-body">
+                        <div id="ysLoadingCharts" class="loading" style="display: none;">
+                            <div class="spinner"></div>
+                            <p style="color: #888;">LOADING CHARTS...</p>
+                        </div>
+                        <canvas id="ysMainChart" style="background: #000; border: 1px solid #333; padding: 20px; min-height: 400px;"></canvas>
+                    </div>
+                </div>
+
+                <!-- Correlation Heatmap -->
+                <div class="terminal-card">
+                    <div class="terminal-card-header">
+                        <h2>Correlation Matrix (Spread vs FX Returns)</h2>
+                    </div>
+                    <div class="terminal-card-body">
+                        <div id="ysCorrelationMatrix"></div>
+                    </div>
+                </div>
+
+                <!-- Lead/Lag Analysis -->
+                <div class="terminal-card">
+                    <div class="terminal-card-header">
+                        <h2>Lead/Lag Analysis</h2>
+                    </div>
+                    <div class="terminal-card-body">
+                        <div id="ysLeadLag"></div>
+                    </div>
+                </div>
+
+                <!-- Statistical Details -->
+                <div class="terminal-card">
+                    <div class="terminal-card-header">
+                        <h2>Statistical Analysis</h2>
+                    </div>
+                    <div class="terminal-card-body">
+                        <div id="ysStatistics"></div>
                     </div>
                 </div>
             </div>
@@ -4143,6 +4243,452 @@
         if (document.getElementById('dashboard').classList.contains('active')) {
             refreshWatchlist();
             loadSavedWidgets();
+        }
+
+        // ============================================
+        // YIELD SPREAD ANALYZER
+        // ============================================
+
+        let ysChartInstance = null;
+
+        async function loadYieldSpreadAnalysis() {
+            const period = document.getElementById('ysPeriodSelect').value;
+
+            // Show loading
+            document.getElementById('ysLoadingSnapshot').style.display = 'block';
+            document.getElementById('ysLoadingCharts').style.display = 'block';
+
+            try {
+                const token = localStorage.getItem('atlasToken');
+                const response = await fetch(`${API_URL}/api/yield-spread/analyze?period=${period}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch yield spread data');
+                }
+
+                const data = await response.json();
+
+                if (data.status === 'error') {
+                    throw new Error(data.error || 'Analysis failed');
+                }
+
+                // Render components
+                renderYSCurrentValues(data);
+                renderYSAlerts(data);
+                renderYSChart(data);
+                renderYSCorrelationMatrix(data);
+                renderYSLeadLag(data);
+                renderYSStatistics(data);
+
+            } catch (error) {
+                console.error('Error loading yield spread analysis:', error);
+                document.getElementById('ysCurrentValues').innerHTML =
+                    `<div class="alert alert-error">Error: ${error.message}</div>`;
+            } finally {
+                document.getElementById('ysLoadingSnapshot').style.display = 'none';
+                document.getElementById('ysLoadingCharts').style.display = 'none';
+            }
+        }
+
+        function renderYSCurrentValues(data) {
+            const container = document.getElementById('ysCurrentValues');
+            const current = data.current;
+
+            let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">';
+
+            // Yields
+            html += '<div style="grid-column: span 4;"><h3 style="color: #f7931a; margin-bottom: 15px; font-size: 1rem; letter-spacing: 2px;">TREASURY YIELDS</h3></div>';
+
+            if (current.yields) {
+                for (const [key, value] of Object.entries(current.yields)) {
+                    const label = key.replace('_', ' ');
+                    html += `
+                        <div class="stat-box">
+                            <div class="stat-label">${label}</div>
+                            <div class="stat-value">${value.toFixed(2)}%</div>
+                        </div>
+                    `;
+                }
+            }
+
+            // FX
+            html += '<div style="grid-column: span 4;"><h3 style="color: #f7931a; margin: 20px 0 15px; font-size: 1rem; letter-spacing: 2px;">FX & RISK</h3></div>';
+
+            if (current.fx) {
+                for (const [key, value] of Object.entries(current.fx)) {
+                    html += `
+                        <div class="stat-box">
+                            <div class="stat-label">${key}</div>
+                            <div class="stat-value">${value.toFixed(2)}</div>
+                        </div>
+                    `;
+                }
+            }
+
+            // Spreads
+            html += '<div style="grid-column: span 4;"><h3 style="color: #f7931a; margin: 20px 0 15px; font-size: 1rem; letter-spacing: 2px;">YIELD SPREADS</h3></div>';
+
+            if (current.spreads) {
+                for (const [key, value] of Object.entries(current.spreads)) {
+                    const zscore = current.spread_zscores ? current.spread_zscores[key] : null;
+                    const zscoreColor = zscore ? (Math.abs(zscore) > 2 ? '#ff4444' : (Math.abs(zscore) > 1 ? '#ffaa00' : '#00ff00')) : '#888';
+
+                    html += `
+                        <div class="stat-box">
+                            <div class="stat-label">${key}</div>
+                            <div class="stat-value">${value.toFixed(2)} bp</div>
+                            ${zscore !== null ? `<div style="font-size: 0.8rem; color: ${zscoreColor}; margin-top: 5px;">Z: ${zscore.toFixed(2)}σ</div>` : ''}
+                        </div>
+                    `;
+                }
+            }
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function renderYSAlerts(data) {
+            const container = document.getElementById('ysAlerts');
+            const card = document.getElementById('ysAlertsCard');
+
+            if (!data.alerts || data.alerts.length === 0) {
+                card.style.display = 'none';
+                return;
+            }
+
+            card.style.display = 'block';
+
+            let html = '';
+            data.alerts.forEach(alert => {
+                const severityColor = {
+                    'HIGH': '#ff4444',
+                    'MEDIUM': '#ffaa00',
+                    'LOW': '#00aa00'
+                }[alert.severity] || '#888';
+
+                html += `
+                    <div class="alert" style="border-left: 4px solid ${severityColor}; margin-bottom: 10px; padding: 15px; background: #1a1a1a;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong style="color: ${severityColor};">[${alert.severity}]</strong>
+                                <strong style="color: #f7931a; margin-left: 10px;">${alert.type}</strong>
+                            </div>
+                        </div>
+                        <p style="margin: 10px 0 0 0; color: #ccc;">${alert.message}</p>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function renderYSChart(data) {
+            const canvas = document.getElementById('ysMainChart');
+            const ctx = canvas.getContext('2d');
+
+            // Destroy previous chart
+            if (ysChartInstance) {
+                ysChartInstance.destroy();
+            }
+
+            const historical = data.historical;
+
+            if (!historical || !historical.dates) {
+                canvas.parentElement.innerHTML = '<p style="color: #888; text-align: center; padding: 40px;">No historical data available</p>';
+                return;
+            }
+
+            const datasets = [];
+
+            // Add DXY
+            if (historical.fx && historical.fx.DXY) {
+                datasets.push({
+                    label: 'DXY',
+                    data: historical.fx.DXY,
+                    borderColor: '#f7931a',
+                    backgroundColor: 'rgba(247, 147, 26, 0.1)',
+                    borderWidth: 2,
+                    yAxisID: 'y',
+                    tension: 0.1
+                });
+            }
+
+            // Add Spreads
+            if (historical.spreads) {
+                const spreadColors = {
+                    'US_10Y_2Y': '#00aaff',
+                    'US_EU_10Y': '#00ff00',
+                    'US_UK_10Y': '#ff00ff',
+                    'US_JP_10Y': '#ffff00',
+                    'US_EU_2Y': '#00dd00',
+                    'US_UK_2Y': '#dd00dd',
+                    'US_JP_2Y': '#dddd00'
+                };
+
+                for (const [key, values] of Object.entries(historical.spreads)) {
+                    datasets.push({
+                        label: key,
+                        data: values,
+                        borderColor: spreadColors[key] || '#ffffff',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        yAxisID: 'y1',
+                        tension: 0.1
+                    });
+                }
+            }
+
+            ysChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: historical.dates,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                color: '#f7931a',
+                                font: {
+                                    family: 'Consolas, monospace',
+                                    size: 11
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: '#0a0a0a',
+                            titleColor: '#f7931a',
+                            bodyColor: '#ffffff',
+                            borderColor: '#f7931a',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: '#888',
+                                maxRotation: 45,
+                                minRotation: 45
+                            },
+                            grid: {
+                                color: '#222'
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'DXY',
+                                color: '#f7931a'
+                            },
+                            ticks: {
+                                color: '#f7931a'
+                            },
+                            grid: {
+                                color: '#222'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Spread (bp)',
+                                color: '#00aaff'
+                            },
+                            ticks: {
+                                color: '#00aaff'
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderYSCorrelationMatrix(data) {
+            const container = document.getElementById('ysCorrelationMatrix');
+            const correlations = data.correlations;
+
+            if (!correlations || Object.keys(correlations).length === 0) {
+                container.innerHTML = '<p style="color: #888; text-align: center; padding: 20px;">No correlation data available</p>';
+                return;
+            }
+
+            let html = '<div style="overflow-x: auto;">';
+            html += '<table style="width: 100%; border-collapse: collapse; font-family: Consolas, monospace; font-size: 0.9rem;">';
+
+            // Header
+            html += '<thead><tr><th style="padding: 10px; text-align: left; border-bottom: 2px solid #f7931a; color: #f7931a;">Spread</th>';
+            html += '<th style="padding: 10px; text-align: left; border-bottom: 2px solid #f7931a; color: #f7931a;">FX Pair</th>';
+            html += '<th style="padding: 10px; text-align: center; border-bottom: 2px solid #f7931a; color: #f7931a;">30d</th>';
+            html += '<th style="padding: 10px; text-align: center; border-bottom: 2px solid #f7931a; color: #f7931a;">90d</th>';
+            html += '<th style="padding: 10px; text-align: center; border-bottom: 2px solid #f7931a; color: #f7931a;">180d</th></tr></thead>';
+
+            html += '<tbody>';
+
+            for (const [spread, fxPairs] of Object.entries(correlations)) {
+                for (const [fx, windows] of Object.entries(fxPairs)) {
+                    html += '<tr style="border-bottom: 1px solid #333;">';
+                    html += `<td style="padding: 10px; color: #f7931a;">${spread}</td>`;
+                    html += `<td style="padding: 10px; color: #ccc;">${fx}</td>`;
+
+                    ['30d', '90d', '180d'].forEach(window => {
+                        const corr = windows[window] || 0;
+                        const absCorr = Math.abs(corr);
+                        const color = absCorr > 0.7 ? '#ff4444' : (absCorr > 0.5 ? '#ffaa00' : (absCorr > 0.3 ? '#00aa00' : '#888'));
+
+                        html += `<td style="padding: 10px; text-align: center; color: ${color}; font-weight: ${absCorr > 0.6 ? 'bold' : 'normal'};">${corr.toFixed(3)}</td>`;
+                    });
+
+                    html += '</tr>';
+                }
+            }
+
+            html += '</tbody></table></div>';
+
+            // Legend
+            html += '<div style="margin-top: 20px; padding: 15px; background: #1a1a1a; border: 1px solid #333; font-size: 0.85rem;">';
+            html += '<strong style="color: #f7931a;">INTERPRETATION</strong><br>';
+            html += '<span style="color: #ff4444;">■</span> Strong (|r| > 0.7) | ';
+            html += '<span style="color: #ffaa00;">■</span> Moderate (|r| > 0.5) | ';
+            html += '<span style="color: #00aa00;">■</span> Weak (|r| > 0.3) | ';
+            html += '<span style="color: #888;">■</span> Negligible<br>';
+            html += '<em style="color: #888;">Positive correlation: Spread ↑ → FX ↑ | Negative correlation: Spread ↑ → FX ↓</em>';
+            html += '</div>';
+
+            container.innerHTML = html;
+        }
+
+        function renderYSLeadLag(data) {
+            const container = document.getElementById('ysLeadLag');
+            const leadLag = data.lead_lag;
+
+            if (!leadLag || Object.keys(leadLag).length === 0) {
+                container.innerHTML = '<p style="color: #888; text-align: center; padding: 20px;">No lead/lag data available</p>';
+                return;
+            }
+
+            let html = '<div style="overflow-x: auto;">';
+            html += '<table style="width: 100%; border-collapse: collapse; font-family: Consolas, monospace; font-size: 0.9rem;">';
+
+            // Header
+            html += '<thead><tr><th style="padding: 10px; text-align: left; border-bottom: 2px solid #f7931a; color: #f7931a;">Spread</th>';
+            html += '<th style="padding: 10px; text-align: left; border-bottom: 2px solid #f7931a; color: #f7931a;">FX Pair</th>';
+            html += '<th style="padding: 10px; text-align: center; border-bottom: 2px solid #f7931a; color: #f7931a;">Lag (days)</th>';
+            html += '<th style="padding: 10px; text-align: center; border-bottom: 2px solid #f7931a; color: #f7931a;">Correlation</th>';
+            html += '<th style="padding: 10px; text-align: left; border-bottom: 2px solid #f7931a; color: #f7931a;">Interpretation</th></tr></thead>';
+
+            html += '<tbody>';
+
+            for (const [spread, fxPairs] of Object.entries(leadLag)) {
+                for (const [fx, data] of Object.entries(fxPairs)) {
+                    const lag = data.lag || 0;
+                    const corr = data.correlation || 0;
+
+                    let interpretation = '';
+                    if (lag < 0) {
+                        interpretation = `Spread leads by ${Math.abs(lag)} days`;
+                    } else if (lag > 0) {
+                        interpretation = `FX leads by ${lag} days`;
+                    } else {
+                        interpretation = 'Synchronous';
+                    }
+
+                    const corrColor = Math.abs(corr) > 0.5 ? '#00ff00' : '#888';
+
+                    html += '<tr style="border-bottom: 1px solid #333;">';
+                    html += `<td style="padding: 10px; color: #f7931a;">${spread}</td>`;
+                    html += `<td style="padding: 10px; color: #ccc;">${fx}</td>`;
+                    html += `<td style="padding: 10px; text-align: center; color: ${lag !== 0 ? '#ffaa00' : '#888'};">${lag}</td>`;
+                    html += `<td style="padding: 10px; text-align: center; color: ${corrColor};">${corr.toFixed(3)}</td>`;
+                    html += `<td style="padding: 10px; color: #ccc;">${interpretation}</td>`;
+                    html += '</tr>';
+                }
+            }
+
+            html += '</tbody></table></div>';
+
+            // Legend
+            html += '<div style="margin-top: 20px; padding: 15px; background: #1a1a1a; border: 1px solid #333; font-size: 0.85rem;">';
+            html += '<strong style="color: #f7931a;">INTERPRETATION</strong><br>';
+            html += '<em style="color: #888;">Negative lag: Spread moves first (leading indicator)<br>';
+            html += 'Positive lag: FX moves first (spread is lagging indicator)<br>';
+            html += 'Zero lag: Both move simultaneously</em>';
+            html += '</div>';
+
+            container.innerHTML = html;
+        }
+
+        function renderYSStatistics(data) {
+            const container = document.getElementById('ysStatistics');
+            const current = data.current;
+
+            let html = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">';
+
+            // Z-Scores
+            html += '<div><h3 style="color: #f7931a; margin-bottom: 15px; font-size: 1rem; letter-spacing: 2px;">SPREAD Z-SCORES</h3>';
+            html += '<div style="background: #1a1a1a; padding: 15px; border: 1px solid #333;">';
+
+            if (current.spread_zscores) {
+                html += '<table style="width: 100%; font-family: Consolas, monospace; font-size: 0.9rem;">';
+                for (const [key, zscore] of Object.entries(current.spread_zscores)) {
+                    const color = Math.abs(zscore) > 2.5 ? '#ff4444' : (Math.abs(zscore) > 1.5 ? '#ffaa00' : '#00aa00');
+                    html += `<tr><td style="padding: 5px; color: #ccc;">${key}</td><td style="padding: 5px; text-align: right; color: ${color}; font-weight: bold;">${zscore.toFixed(2)}σ</td></tr>`;
+                }
+                html += '</table>';
+            } else {
+                html += '<p style="color: #888;">No Z-score data available</p>';
+            }
+
+            html += '</div></div>';
+
+            // FX Z-Scores
+            html += '<div><h3 style="color: #f7931a; margin-bottom: 15px; font-size: 1rem; letter-spacing: 2px;">FX Z-SCORES</h3>';
+            html += '<div style="background: #1a1a1a; padding: 15px; border: 1px solid #333;">';
+
+            if (current.fx_zscores) {
+                html += '<table style="width: 100%; font-family: Consolas, monospace; font-size: 0.9rem;">';
+                for (const [key, zscore] of Object.entries(current.fx_zscores)) {
+                    const color = Math.abs(zscore) > 2 ? '#ff4444' : (Math.abs(zscore) > 1 ? '#ffaa00' : '#00aa00');
+                    html += `<tr><td style="padding: 5px; color: #ccc;">${key}</td><td style="padding: 5px; text-align: right; color: ${color}; font-weight: bold;">${zscore.toFixed(2)}σ</td></tr>`;
+                }
+                html += '</table>';
+            } else {
+                html += '<p style="color: #888;">No Z-score data available</p>';
+            }
+
+            html += '</div></div>';
+
+            html += '</div>';
+
+            // Explanation
+            html += '<div style="margin-top: 20px; padding: 15px; background: #1a1a1a; border: 1px solid #333; font-size: 0.85rem;">';
+            html += '<strong style="color: #f7931a;">Z-SCORE INTERPRETATION</strong><br>';
+            html += '<span style="color: #00aa00;">■</span> Normal (|Z| < 1.5) | ';
+            html += '<span style="color: #ffaa00;">■</span> Elevated (1.5 ≤ |Z| < 2.5) | ';
+            html += '<span style="color: #ff4444;">■</span> Extreme (|Z| ≥ 2.5)<br>';
+            html += '<em style="color: #888;">Z-Score measures how many standard deviations a value is from its historical mean.</em>';
+            html += '</div>';
+
+            container.innerHTML = html;
         }
     </script>
 </body>

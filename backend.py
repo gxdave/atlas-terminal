@@ -32,6 +32,9 @@ from auth import (
 # Import data sources
 from data_sources import get_historical_data
 
+# Import yield spread analyzer
+from yield_spread_analyzer import get_analyzer
+
 # Add Prob_Analyzer path
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../Prob_Analyzer'))
 
@@ -2815,6 +2818,53 @@ async def analyze_hosted_dataset(request: Dict[str, Any]):
     except Exception as e:
         logger.error(f"Error analyzing hosted dataset: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to analyze dataset: {str(e)}")
+
+@app.get("/api/yield-spread/analyze")
+async def analyze_yield_spreads(
+    period: str = "1y",
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Comprehensive yield spread analysis
+
+    Args:
+        period: Time period (1mo, 3mo, 6mo, 1y, 2y)
+
+    Returns:
+        Complete analysis including:
+        - Current yields, spreads, Z-scores
+        - Rolling correlations (30/90/180 days)
+        - Lead/Lag analysis
+        - Historical data for charts
+        - Alerts for extreme conditions
+    """
+    try:
+        analyzer = get_analyzer()
+        result = analyzer.analyze(period=period)
+        return result
+    except Exception as e:
+        logger.error(f"Error in yield spread analysis: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/yield-spread/summary")
+async def get_yield_spread_summary(
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Quick summary of current yield spreads and FX
+
+    Returns:
+        Current values and 1-day changes
+    """
+    try:
+        analyzer = get_analyzer()
+        result = analyzer.get_summary()
+        return result
+    except Exception as e:
+        logger.error(f"Error getting yield spread summary: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/health")
 async def health_check():
