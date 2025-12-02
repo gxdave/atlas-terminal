@@ -310,9 +310,6 @@ class YieldSpreadAnalyzer:
                     'VIX': 'VIXCLS',      # CBOE Volatility Index
                 }
 
-                # Store raw FRED data for DXY calculation
-                raw_fred_data = {}
-
                 for name, series_id in fred_fx_series.items():
                     try:
                         series = self.fred.get_series(
@@ -322,17 +319,17 @@ class YieldSpreadAnalyzer:
                         )
 
                         if series is not None and not series.empty:
-                            # Store raw data for DXY calculation
-                            raw_fred_data[name] = series
-
                             # FRED provides: DEXUSEU (USD/EUR), DEXJPUS (USD/JPY), DEXUSUK (USD/GBP)
                             # Market convention: EUR/USD, USD/JPY, GBP/USD
                             # We need to invert EUR and GBP for display and analysis
                             if name in ['EURUSD', 'GBPUSD']:
-                                series = 1 / series  # Invert: USD/EUR -> EUR/USD, USD/GBP -> GBP/USD
+                                # Invert: USD/EUR -> EUR/USD, USD/GBP -> GBP/USD
+                                series = 1.0 / series.copy()  # Explicit copy to avoid reference issues
+                                logger.info(f"Inverted {name} from FRED: {len(series)} data points, latest: {series.iloc[-1]:.4f}")
+                            else:
+                                logger.info(f"Fetched {name} from FRED: {len(series)} data points, latest: {series.iloc[-1]:.4f}")
 
                             data[name] = series
-                            logger.info(f"Fetched {name} from FRED: {len(series)} data points, latest: {series.iloc[-1]:.4f}")
                     except Exception as e:
                         logger.warning(f"Failed to fetch {name} from FRED: {e}")
 
