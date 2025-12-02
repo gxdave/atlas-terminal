@@ -302,11 +302,11 @@ class YieldSpreadAnalyzer:
                 data = {}
 
                 # FRED series for FX rates (daily data)
+                # Note: FRED doesn't have DXY (ICE Dollar Index), we'll calculate it from major pairs
                 fred_fx_series = {
                     'EURUSD': 'DEXUSEU',  # Euro to US Dollar (inverted in FRED)
                     'USDJPY': 'DEXJPUS',  # US Dollar to Japanese Yen
                     'GBPUSD': 'DEXUSUK',  # UK Pound to US Dollar (inverted)
-                    'DXY': 'DTWEXBGS',    # Trade Weighted US Dollar Index (Broad, Goods and Services)
                     'VIX': 'VIXCLS',      # CBOE Volatility Index
                 }
 
@@ -328,6 +328,28 @@ class YieldSpreadAnalyzer:
                             logger.info(f"Fetched {name} from FRED: {len(series)} data points")
                     except Exception as e:
                         logger.warning(f"Failed to fetch {name} from FRED: {e}")
+
+                # Calculate DXY proxy from major currency pairs (more accurate than FRED's trade weighted index)
+                # DXY formula (approximate): 50.14348112 × EUR/USD^(-0.576) × USD/JPY^(0.136) × GBP/USD^(-0.119) × ...
+                # Simplified version using major pairs
+                if 'EURUSD' in data and 'USDJPY' in data and 'GBPUSD' in data:
+                    try:
+                        # Simple DXY proxy: inversely correlated with EUR/USD, correlated with USD/JPY
+                        # Normalize to ~100 scale (DXY typical range)
+                        eurusd_inv = 1 / data['EURUSD']  # USD strength vs EUR
+                        usdjpy_norm = data['USDJPY'] / 100  # Normalize JPY
+                        gbpusd_inv = 1 / data['GBPUSD']  # USD strength vs GBP
+
+                        # Weighted average (EUR=57.6%, JPY=13.6%, GBP=11.9% in actual DXY)
+                        dxy_proxy = (eurusd_inv * 0.576 + usdjpy_norm * 0.136 + gbpusd_inv * 0.119) / 0.835
+
+                        # Scale to match typical DXY range (~100)
+                        dxy_proxy = dxy_proxy * 100
+
+                        data['DXY'] = dxy_proxy
+                        logger.info(f"Calculated DXY proxy from major pairs: {len(dxy_proxy)} data points")
+                    except Exception as e:
+                        logger.warning(f"Failed to calculate DXY proxy: {e}")
 
                 if data:
                     df = pd.DataFrame(data)
