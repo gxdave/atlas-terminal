@@ -423,12 +423,25 @@ class YieldSpreadAnalyzer:
             logger.info(f"Starting yield spread analysis for period: {period}")
 
             # 1. Fetch data
+            logger.info("Fetching treasury yields...")
             yields = self.fetch_treasury_yields(period)
+            logger.info(f"Treasury yields fetched: {len(yields)} rows, columns: {list(yields.columns) if not yields.empty else 'empty'}")
+
+            logger.info("Fetching international yields...")
             intl_yields = self.fetch_international_yields(period)
+            logger.info(f"International yields fetched: {len(intl_yields)} rows")
+
+            logger.info("Fetching FX data...")
             fx_data = self.fetch_fx_data(period)
+            logger.info(f"FX data fetched: {len(fx_data)} rows, columns: {list(fx_data.columns) if not fx_data.empty else 'empty'}")
 
             if yields.empty or fx_data.empty:
-                raise ValueError("Failed to fetch required data")
+                error_msg = []
+                if yields.empty:
+                    error_msg.append("Treasury yields data unavailable")
+                if fx_data.empty:
+                    error_msg.append("FX data unavailable")
+                raise ValueError(f"Failed to fetch required data: {', '.join(error_msg)}")
 
             # Combine US and international yields
             if not intl_yields.empty:
