@@ -310,6 +310,9 @@ class YieldSpreadAnalyzer:
                     'VIX': 'VIXCLS',      # CBOE Volatility Index
                 }
 
+                # Store raw FRED data for DXY calculation
+                raw_fred_data = {}
+
                 for name, series_id in fred_fx_series.items():
                     try:
                         series = self.fred.get_series(
@@ -319,33 +322,40 @@ class YieldSpreadAnalyzer:
                         )
 
                         if series is not None and not series.empty:
-                            # FRED has some FX rates inverted (EUR/USD and GBP/USD are USD/EUR and USD/GBP)
-                            # We need EUR/USD format (how much USD per 1 EUR)
+                            # Store raw data for DXY calculation
+                            raw_fred_data[name] = series
+
+                            # FRED provides: DEXUSEU (USD/EUR), DEXJPUS (USD/JPY), DEXUSUK (USD/GBP)
+                            # Market convention: EUR/USD, USD/JPY, GBP/USD
+                            # We need to invert EUR and GBP for display and analysis
                             if name in ['EURUSD', 'GBPUSD']:
-                                series = 1 / series  # Invert to get correct format
+                                series = 1 / series  # Invert: USD/EUR -> EUR/USD, USD/GBP -> GBP/USD
 
                             data[name] = series
-                            logger.info(f"Fetched {name} from FRED: {len(series)} data points")
+                            logger.info(f"Fetched {name} from FRED: {len(series)} data points, latest: {series.iloc[-1]:.4f}")
                     except Exception as e:
                         logger.warning(f"Failed to fetch {name} from FRED: {e}")
 
                 # Calculate DXY proxy from major currency pairs (ICE Dollar Index formula)
-                # DXY = 50.14348112 × (EUR/USD)^(-0.576) × (USD/JPY)^(0.136) × (GBP/USD)^(-0.119) × ...
-                # Using major pairs only (EUR, JPY, GBP represent ~80% of DXY)
+                # DXY = 50.14348112 × (EUR/USD)^(-0.576) × (USD/JPY)^(0.136) × (GBP/USD)^(-0.119)
+                # IMPORTANT: Use market convention rates (already inverted above)
                 if 'EURUSD' in data and 'USDJPY' in data and 'GBPUSD' in data:
                     try:
-                        # ICE Dollar Index formula with major currency pairs
-                        # Exponents are negative for EUR/USD and GBP/USD (inverse relationship)
-                        # Positive for USD/JPY (direct relationship)
+                        # ICE Dollar Index formula with market convention rates
+                        # EUR/USD = 1.16, USD/JPY = 156, GBP/USD = 1.32 → DXY ≈ 99.3
+                        eurusd = data['EURUSD']  # Market format (e.g., 1.16)
+                        usdjpy = data['USDJPY']  # Market format (e.g., 156)
+                        gbpusd = data['GBPUSD']  # Market format (e.g., 1.32)
+
                         dxy_proxy = (
                             50.14348112 *
-                            (data['EURUSD'] ** (-0.576)) *  # EUR/USD with negative exponent
-                            (data['USDJPY'] ** (0.136)) *   # USD/JPY with positive exponent
-                            (data['GBPUSD'] ** (-0.119))    # GBP/USD with negative exponent
+                            (eurusd ** (-0.576)) *  # Negative exponent (inverse relationship)
+                            (usdjpy ** (0.136)) *   # Positive exponent (direct relationship)
+                            (gbpusd ** (-0.119))    # Negative exponent (inverse relationship)
                         )
 
                         data['DXY'] = dxy_proxy
-                        logger.info(f"Calculated DXY proxy from major pairs: {len(dxy_proxy)} data points, latest: {dxy_proxy.iloc[-1]:.2f}")
+                        logger.info(f"DXY calculation - EUR/USD: {eurusd.iloc[-1]:.4f}, USD/JPY: {usdjpy.iloc[-1]:.2f}, GBP/USD: {gbpusd.iloc[-1]:.4f} → DXY: {dxy_proxy.iloc[-1]:.2f}")
                     except Exception as e:
                         logger.warning(f"Failed to calculate DXY proxy: {e}")
 
