@@ -93,7 +93,7 @@ class YieldSpreadAnalyzer:
 
     def fetch_treasury_yields(self, period: str = "1y") -> pd.DataFrame:
         """
-        Fetch US Treasury yields from yfinance
+        Fetch US Treasury yields from FRED API (primary) or yfinance (fallback)
 
         Args:
             period: Time period (1mo, 3mo, 6mo, 1y, 2y)
@@ -101,7 +101,62 @@ class YieldSpreadAnalyzer:
         Returns:
             DataFrame with yields
         """
+        # Try FRED API first (more reliable for server deployments)
+        if self.fred:
+            try:
+                logger.info("Attempting to fetch US Treasury yields from FRED API...")
+
+                # Convert period to date range
+                end_date = datetime.now()
+                period_days = {
+                    '1mo': 30,
+                    '3mo': 90,
+                    '6mo': 180,
+                    '1y': 365,
+                    '2y': 730,
+                    '5y': 1825
+                }
+                days = period_days.get(period, 365)
+                start_date = end_date - timedelta(days=days)
+
+                data = {}
+
+                # FRED series for US Treasuries (daily data)
+                fred_series = {
+                    'US_2Y': 'DGS2',    # 2-Year Treasury Constant Maturity Rate
+                    'US_10Y': 'DGS10',  # 10-Year Treasury Constant Maturity Rate
+                    'US_30Y': 'DGS30',  # 30-Year Treasury Constant Maturity Rate
+                }
+
+                for name, series_id in fred_series.items():
+                    try:
+                        series = self.fred.get_series(
+                            series_id,
+                            observation_start=start_date.strftime('%Y-%m-%d'),
+                            observation_end=end_date.strftime('%Y-%m-%d')
+                        )
+
+                        if series is not None and not series.empty:
+                            data[name] = series
+                            logger.info(f"Fetched {name} from FRED: {len(series)} data points")
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch {name} from FRED: {e}")
+
+                if data:
+                    df = pd.DataFrame(data)
+                    df.index = pd.to_datetime(df.index)
+                    df = df.fillna(method='ffill')
+                    logger.info(f"Successfully fetched US Treasury yields from FRED: {list(df.columns)}")
+                    return df
+                else:
+                    logger.warning("No treasury data fetched from FRED")
+
+            except Exception as e:
+                logger.error(f"Error fetching treasury yields from FRED: {e}")
+
+        # Fallback to yfinance (may be blocked on some servers)
         try:
+            logger.info("Attempting to fetch US Treasury yields from yfinance...")
             data = {}
 
             for name, symbol in self.YIELD_SYMBOLS.items():
@@ -109,23 +164,20 @@ class YieldSpreadAnalyzer:
                 hist = ticker.history(period=period)
 
                 if not hist.empty:
-                    # yfinance returns yields as values, normalize to percentage
                     data[name] = hist['Close']
 
             if not data:
-                logger.warning("No treasury data fetched")
+                logger.warning("No treasury data fetched from yfinance")
                 return pd.DataFrame()
 
             df = pd.DataFrame(data)
             df.index = pd.to_datetime(df.index)
-
-            # Forward fill missing values
             df = df.fillna(method='ffill')
-
+            logger.info(f"Successfully fetched US Treasury yields from yfinance: {list(df.columns)}")
             return df
 
         except Exception as e:
-            logger.error(f"Error fetching treasury yields: {e}")
+            logger.error(f"Error fetching treasury yields from yfinance: {e}")
             return pd.DataFrame()
 
     def fetch_international_yields(self, period: str = "1y") -> pd.DataFrame:
@@ -221,7 +273,7 @@ class YieldSpreadAnalyzer:
 
     def fetch_fx_data(self, period: str = "1y") -> pd.DataFrame:
         """
-        Fetch FX and risk indicator data
+        Fetch FX and risk indicator data from FRED API (primary) or yfinance (fallback)
 
         Args:
             period: Time period
@@ -229,7 +281,69 @@ class YieldSpreadAnalyzer:
         Returns:
             DataFrame with FX prices
         """
+        # Try FRED API first (more reliable for server deployments)
+        if self.fred:
+            try:
+                logger.info("Attempting to fetch FX data from FRED API...")
+
+                # Convert period to date range
+                end_date = datetime.now()
+                period_days = {
+                    '1mo': 30,
+                    '3mo': 90,
+                    '6mo': 180,
+                    '1y': 365,
+                    '2y': 730,
+                    '5y': 1825
+                }
+                days = period_days.get(period, 365)
+                start_date = end_date - timedelta(days=days)
+
+                data = {}
+
+                # FRED series for FX rates (daily data)
+                fred_fx_series = {
+                    'EURUSD': 'DEXUSEU',  # Euro to US Dollar (inverted in FRED)
+                    'USDJPY': 'DEXJPUS',  # US Dollar to Japanese Yen
+                    'GBPUSD': 'DEXUSUK',  # UK Pound to US Dollar (inverted)
+                    'DXY': 'DTWEXBGS',    # Trade Weighted US Dollar Index (Broad, Goods and Services)
+                    'VIX': 'VIXCLS',      # CBOE Volatility Index
+                }
+
+                for name, series_id in fred_fx_series.items():
+                    try:
+                        series = self.fred.get_series(
+                            series_id,
+                            observation_start=start_date.strftime('%Y-%m-%d'),
+                            observation_end=end_date.strftime('%Y-%m-%d')
+                        )
+
+                        if series is not None and not series.empty:
+                            # FRED has some FX rates inverted (EUR/USD and GBP/USD are USD/EUR and USD/GBP)
+                            # We need EUR/USD format (how much USD per 1 EUR)
+                            if name in ['EURUSD', 'GBPUSD']:
+                                series = 1 / series  # Invert to get correct format
+
+                            data[name] = series
+                            logger.info(f"Fetched {name} from FRED: {len(series)} data points")
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch {name} from FRED: {e}")
+
+                if data:
+                    df = pd.DataFrame(data)
+                    df.index = pd.to_datetime(df.index)
+                    df = df.fillna(method='ffill')
+                    logger.info(f"Successfully fetched FX data from FRED: {list(df.columns)}")
+                    return df
+                else:
+                    logger.warning("No FX data fetched from FRED")
+
+            except Exception as e:
+                logger.error(f"Error fetching FX data from FRED: {e}")
+
+        # Fallback to yfinance (may be blocked on some servers)
         try:
+            logger.info("Attempting to fetch FX data from yfinance...")
             data = {}
 
             all_symbols = {**self.FX_SYMBOLS, **self.RISK_SYMBOLS}
@@ -242,17 +356,17 @@ class YieldSpreadAnalyzer:
                     data[name] = hist['Close']
 
             if not data:
-                logger.warning("No FX data fetched")
+                logger.warning("No FX data fetched from yfinance")
                 return pd.DataFrame()
 
             df = pd.DataFrame(data)
             df.index = pd.to_datetime(df.index)
             df = df.fillna(method='ffill')
-
+            logger.info(f"Successfully fetched FX data from yfinance: {list(df.columns)}")
             return df
 
         except Exception as e:
-            logger.error(f"Error fetching FX data: {e}")
+            logger.error(f"Error fetching FX data from yfinance: {e}")
             return pd.DataFrame()
 
     def calculate_spreads(self, yields_df: pd.DataFrame) -> pd.DataFrame:
