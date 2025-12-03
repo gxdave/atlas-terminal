@@ -3807,8 +3807,8 @@
             const canvas = document.getElementById('cotChartCanvas');
             const ctx = canvas.getContext('2d');
 
-            // Sort assets by net position (ascending - weakest left, strongest right)
-            const sortedAssets = [...assets].sort((a, b) => a.netPosition - b.netPosition);
+            // Sort assets by Long% (ascending - creates diagonal line from left to right)
+            const sortedAssets = [...assets].sort((a, b) => a.longPct - b.longPct);
 
             // Prepare data
             const labels = sortedAssets.map(a => a.name);
@@ -3825,15 +3825,15 @@
                             label: 'Long %',
                             data: longData,
                             backgroundColor: '#ffa500',
-                            borderColor: '#333',
+                            borderColor: '#ffa500',
                             borderWidth: 1
                         },
                         {
                             label: 'Short %',
                             data: shortData,
                             backgroundColor: '#1a1a1a',
-                            borderColor: '#333',
-                            borderWidth: 1
+                            borderColor: '#ffa500',
+                            borderWidth: 2
                         }
                     ]
                 },
