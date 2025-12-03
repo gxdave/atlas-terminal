@@ -271,9 +271,98 @@ class YieldSpreadAnalyzer:
             logger.error(f"Error fetching international yields: {e}")
             return pd.DataFrame()
 
+    def fetch_fx_data_alphavantage(self, period: str = "1y") -> pd.DataFrame:
+        """
+        Fetch FX data from Alpha Vantage API
+
+        Args:
+            period: Time period
+
+        Returns:
+            DataFrame with FX prices in correct market convention
+        """
+        try:
+            api_key = os.getenv('ALPHAVANTAGE_API_KEY')
+            if not api_key or api_key == 'demo':
+                logger.warning("No Alpha Vantage API key available")
+                return pd.DataFrame()
+
+            logger.info("Fetching FX data from Alpha Vantage API...")
+
+            period_days = {'1mo': 30, '3mo': 90, '6mo': 180, '1y': 365, '2y': 730, '5y': 1825}
+            days = period_days.get(period, 365)
+            cutoff_date = datetime.now() - timedelta(days=days)
+
+            data = {}
+            fx_pairs = {
+                'EURUSD': ('EUR', 'USD'),
+                'GBPUSD': ('GBP', 'USD'),
+                'USDJPY': ('USD', 'JPY'),
+            }
+
+            for name, (from_curr, to_curr) in fx_pairs.items():
+                try:
+                    url = "https://www.alphavantage.co/query"
+                    params = {
+                        'function': 'FX_DAILY',
+                        'from_symbol': from_curr,
+                        'to_symbol': to_curr,
+                        'apikey': api_key,
+                        'outputsize': 'full'
+                    }
+
+                    response = requests.get(url, params=params, timeout=30)
+                    response.raise_for_status()
+                    result = response.json()
+
+                    if 'Time Series FX (Daily)' in result:
+                        ts = result['Time Series FX (Daily)']
+                        df_temp = pd.DataFrame.from_dict(ts, orient='index')
+                        df_temp.index = pd.to_datetime(df_temp.index)
+                        df_temp = df_temp.sort_index()
+                        df_temp = df_temp[df_temp.index >= cutoff_date]
+
+                        series = pd.to_numeric(df_temp['4. close'])
+                        data[name] = series
+                        logger.info(f"Alpha Vantage {name}: {len(series)} points, latest: {series.iloc[-1]:.4f}")
+                    else:
+                        logger.warning(f"No Alpha Vantage data for {name}")
+                except Exception as e:
+                    logger.warning(f"Alpha Vantage {name} failed: {e}")
+
+            # Get VIX from FRED if available
+            if self.fred:
+                try:
+                    vix = self.fred.get_series('VIXCLS',
+                        observation_start=(datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d'))
+                    if vix is not None and not vix.empty:
+                        data['VIX'] = vix
+                        logger.info(f"FRED VIX: {len(vix)} points")
+                except: pass
+
+            # Calculate DXY
+            if 'EURUSD' in data and 'USDJPY' in data and 'GBPUSD' in data:
+                try:
+                    dxy = 50.14348112 * (data['EURUSD'] ** (-0.576)) * (data['USDJPY'] ** 0.136) * (data['GBPUSD'] ** (-0.119))
+                    data['DXY'] = dxy
+                    logger.info(f"DXY calc: EUR/USD={data['EURUSD'].iloc[-1]:.4f}, USD/JPY={data['USDJPY'].iloc[-1]:.2f}, GBP/USD={data['GBPUSD'].iloc[-1]:.4f} → DXY={dxy.iloc[-1]:.2f}")
+                except Exception as e:
+                    logger.warning(f"DXY calc failed: {e}")
+
+            if data:
+                df = pd.DataFrame(data)
+                df.index = pd.to_datetime(df.index)
+                df = df.fillna(method='ffill')
+                return df
+
+            return pd.DataFrame()
+        except Exception as e:
+            logger.error(f"Alpha Vantage error: {e}")
+            return pd.DataFrame()
+
     def fetch_fx_data(self, period: str = "1y") -> pd.DataFrame:
         """
-        Fetch FX and risk indicator data from FRED API (primary) or yfinance (fallback)
+        Fetch FX and risk indicator data from Alpha Vantage (primary), FRED (secondary), or yfinance (fallback)
 
         Args:
             period: Time period
@@ -281,7 +370,14 @@ class YieldSpreadAnalyzer:
         Returns:
             DataFrame with FX prices
         """
-        # Try FRED API first (more reliable for server deployments)
+        # Try Alpha Vantage first (most reliable for FX)
+        df = self.fetch_fx_data_alphavantage(period)
+        if not df.empty:
+            return df
+
+        logger.warning("Alpha Vantage failed, trying FRED...")
+
+        # Try FRED API as fallback
         if self.fred:
             try:
                 logger.info("Attempting to fetch FX data from FRED API...")
