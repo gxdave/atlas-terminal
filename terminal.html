@@ -3807,8 +3807,8 @@
             const canvas = document.getElementById('cotChartCanvas');
             const ctx = canvas.getContext('2d');
 
-            // Sort assets by net position
-            const sortedAssets = [...assets].sort((a, b) => b.netPosition - a.netPosition);
+            // Sort assets by net position (ascending - weakest left, strongest right)
+            const sortedAssets = [...assets].sort((a, b) => a.netPosition - b.netPosition);
 
             // Prepare data
             const labels = sortedAssets.map(a => a.name);
