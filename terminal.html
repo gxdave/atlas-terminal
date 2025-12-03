@@ -1712,7 +1712,16 @@
                 <!-- Charts -->
                 <div class="terminal-card">
                     <div class="terminal-card-header">
-                        <h2>2Y Spreads & FX Pairs</h2>
+                        <h2>Chart Selection</h2>
+                        <select id="ysChartSelect" class="select-control" style="padding: 8px; background: #0a0a0a; color: #f7931a; border: 1px solid #f7931a; font-family: 'Consolas', monospace;" onchange="updateYieldSpreadChart()">
+                            <option value="EURUSD">EUR/USD</option>
+                            <option value="GBPUSD">GBP/USD</option>
+                            <option value="USDJPY">USD/JPY</option>
+                            <option value="US_10Y_2Y" selected>US 10Y-2Y Spread</option>
+                            <option value="US_EU_2Y">US-EU 2Y Spread</option>
+                            <option value="US_UK_2Y">US-UK 2Y Spread</option>
+                            <option value="US_JP_2Y">US-JP 2Y Spread</option>
+                        </select>
                     </div>
                     <div class="terminal-card-body">
                         <div id="ysLoadingCharts" class="loading" style="display: none;">
@@ -4387,16 +4396,27 @@
             container.innerHTML = html;
         }
 
+        // Store data globally for chart updates
+        let ysDataCache = null;
+
         function renderYSChart(data) {
+            ysDataCache = data;  // Store data for chart selection updates
+            updateYieldSpreadChart();
+        }
+
+        function updateYieldSpreadChart() {
+            if (!ysDataCache) return;
+
             const canvas = document.getElementById('ysMainChart');
             const ctx = canvas.getContext('2d');
+            const selected = document.getElementById('ysChartSelect').value;
 
             // Destroy previous chart
             if (ysChartInstance) {
                 ysChartInstance.destroy();
             }
 
-            const historical = data.historical;
+            const historical = ysDataCache.historical;
 
             if (!historical || !historical.dates) {
                 canvas.parentElement.innerHTML = '<p style="color: #888; text-align: center; padding: 40px;">No historical data available</p>';
@@ -4404,52 +4424,55 @@
             }
 
             const datasets = [];
+            let chartConfig = {
+                yAxisLabel: '',
+                yAxisColor: '#f7931a',
+                chartTitle: ''
+            };
 
-            // Add FX Pairs (replacing DXY)
-            if (historical.fx) {
+            // FX Pairs
+            if (['EURUSD', 'GBPUSD', 'USDJPY'].includes(selected)) {
                 const fxConfigs = {
-                    'EURUSD': { color: '#00ff00', yAxis: 'y' },
-                    'GBPUSD': { color: '#ff00ff', yAxis: 'y' },
-                    'USDJPY': { color: '#ffaa00', yAxis: 'y2' }  // Separate axis for JPY scale
+                    'EURUSD': { color: '#00ff00', label: 'EUR/USD' },
+                    'GBPUSD': { color: '#ff00ff', label: 'GBP/USD' },
+                    'USDJPY': { color: '#ffaa00', label: 'USD/JPY' }
                 };
 
-                for (const [pair, config] of Object.entries(fxConfigs)) {
-                    if (historical.fx[pair]) {
-                        datasets.push({
-                            label: pair,
-                            data: historical.fx[pair],
-                            borderColor: config.color,
-                            backgroundColor: 'transparent',
-                            borderWidth: 2,
-                            yAxisID: config.yAxis,
-                            tension: 0.1
-                        });
-                    }
+                if (historical.fx && historical.fx[selected]) {
+                    datasets.push({
+                        label: fxConfigs[selected].label,
+                        data: historical.fx[selected],
+                        borderColor: fxConfigs[selected].color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        yAxisID: 'y',
+                        tension: 0.1
+                    });
+                    chartConfig.yAxisLabel = fxConfigs[selected].label;
+                    chartConfig.yAxisColor = fxConfigs[selected].color;
                 }
             }
-
-            // Add 2Y Spreads ONLY (LTF trading focus)
-            if (historical.spreads) {
-                const spreadColors = {
-                    'US_10Y_2Y': '#00aaff',     // Yield curve
-                    'US_EU_2Y': '#00dd00',      // 2Y spreads only
-                    'US_UK_2Y': '#dd00dd',
-                    'US_JP_2Y': '#dddd00'
+            // Spreads
+            else {
+                const spreadConfigs = {
+                    'US_10Y_2Y': { color: '#00aaff', label: 'US 10Y-2Y Spread (bp)' },
+                    'US_EU_2Y': { color: '#00dd00', label: 'US-EU 2Y Spread (bp)' },
+                    'US_UK_2Y': { color: '#dd00dd', label: 'US-UK 2Y Spread (bp)' },
+                    'US_JP_2Y': { color: '#dddd00', label: 'US-JP 2Y Spread (bp)' }
                 };
 
-                // Only show 2Y spreads (filter out 10Y)
-                for (const [key, values] of Object.entries(historical.spreads)) {
-                    if (spreadColors[key]) {  // Only add spreads in our color config
-                        datasets.push({
-                            label: key,
-                            data: values,
-                            borderColor: spreadColors[key],
-                            backgroundColor: 'transparent',
-                            borderWidth: 2,
-                            yAxisID: 'y1',
-                            tension: 0.1
-                        });
-                    }
+                if (historical.spreads && historical.spreads[selected]) {
+                    datasets.push({
+                        label: spreadConfigs[selected].label,
+                        data: historical.spreads[selected],
+                        borderColor: spreadConfigs[selected].color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        yAxisID: 'y',
+                        tension: 0.1
+                    });
+                    chartConfig.yAxisLabel = spreadConfigs[selected].label;
+                    chartConfig.yAxisColor = spreadConfigs[selected].color;
                 }
             }
 
@@ -4503,38 +4526,14 @@
                             position: 'left',
                             title: {
                                 display: true,
-                                text: 'EUR/USD, GBP/USD',
-                                color: '#00ff00'
+                                text: chartConfig.yAxisLabel,
+                                color: chartConfig.yAxisColor
                             },
                             ticks: {
-                                color: '#00ff00'
+                                color: chartConfig.yAxisColor
                             },
                             grid: {
                                 color: '#222'
-                            }
-                        },
-                        y1: {
-                            type: 'linear',
-                            display: true,
-                            position: 'right',
-                            title: {
-                                display: true,
-                                text: '2Y Spreads (bp)',
-                                color: '#00dd00'
-                            },
-                            ticks: {
-                                color: '#00dd00'
-                            },
-                            grid: {
-                                drawOnChartArea: false
-                            }
-                        },
-                        y2: {
-                            type: 'linear',
-                            display: false,  // Hidden but used for USD/JPY scale
-                            position: 'right',
-                            grid: {
-                                drawOnChartArea: false
                             }
                         }
                     }
