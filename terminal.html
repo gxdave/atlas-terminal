@@ -1713,14 +1713,21 @@
                 <div class="terminal-card">
                     <div class="terminal-card-header">
                         <h2>Yield Spreads & FX Pairs</h2>
-                        <p style="color: #888; font-size: 0.9rem; margin: 5px 0 0 0;">Click on legend items to show/hide</p>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                            <p style="color: #888; font-size: 0.9rem; margin: 0;">
+                                <strong>Controls:</strong> Scroll to zoom | Ctrl+Drag to pan | Click legend to toggle
+                            </p>
+                            <button class="btn btn-small" onclick="resetYieldSpreadChartZoom()" style="padding: 6px 12px; font-size: 0.85rem;">
+                                RESET ZOOM
+                            </button>
+                        </div>
                     </div>
                     <div class="terminal-card-body">
                         <div id="ysLoadingCharts" class="loading" style="display: none;">
                             <div class="spinner"></div>
                             <p style="color: #888;">LOADING CHARTS...</p>
                         </div>
-                        <canvas id="ysMainChart" style="background: #000; border: 1px solid #333; padding: 20px; min-height: 400px;"></canvas>
+                        <canvas id="ysMainChart" style="background: #000; border: 1px solid #333; padding: 20px; min-height: 500px;"></canvas>
                     </div>
                 </div>
 
@@ -1835,6 +1842,9 @@
 
     <!-- Chart.js for Risk Radar -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Chart.js Zoom Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 
     <script>
         // Auto-detect API URL (localhost or Railway deployment)
@@ -4494,11 +4504,50 @@
                             }
                         },
                         tooltip: {
-                            backgroundColor: '#0a0a0a',
+                            backgroundColor: 'rgba(10, 10, 10, 0.95)',
                             titleColor: '#f7931a',
                             bodyColor: '#ffffff',
                             borderColor: '#f7931a',
-                            borderWidth: 1
+                            borderWidth: 2,
+                            padding: 12,
+                            displayColors: true,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        // Format FX pairs with 4 decimals, spreads with 2 decimals
+                                        if (label.includes('USD') && !label.includes('Spread')) {
+                                            label += context.parsed.y.toFixed(4);
+                                        } else {
+                                            label += context.parsed.y.toFixed(2) + ' bp';
+                                        }
+                                    }
+                                    return label;
+                                }
+                            }
+                        },
+                        zoom: {
+                            zoom: {
+                                wheel: {
+                                    enabled: true,
+                                    speed: 0.1
+                                },
+                                pinch: {
+                                    enabled: true
+                                },
+                                mode: 'x'
+                            },
+                            pan: {
+                                enabled: true,
+                                mode: 'x',
+                                modifierKey: 'ctrl'
+                            },
+                            limits: {
+                                x: {min: 'original', max: 'original'}
+                            }
                         }
                     },
                     scales: {
@@ -4555,6 +4604,12 @@
                     }
                 }
             });
+        }
+
+        function resetYieldSpreadChartZoom() {
+            if (ysChartInstance) {
+                ysChartInstance.resetZoom();
+            }
         }
 
         function renderYSCorrelationMatrix(data) {
