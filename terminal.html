@@ -1712,16 +1712,8 @@
                 <!-- Charts -->
                 <div class="terminal-card">
                     <div class="terminal-card-header">
-                        <h2>Chart Selection</h2>
-                        <select id="ysChartSelect" class="select-control" style="padding: 8px; background: #0a0a0a; color: #f7931a; border: 1px solid #f7931a; font-family: 'Consolas', monospace;" onchange="updateYieldSpreadChart()">
-                            <option value="EURUSD">EUR/USD</option>
-                            <option value="GBPUSD">GBP/USD</option>
-                            <option value="USDJPY">USD/JPY</option>
-                            <option value="US_10Y_2Y" selected>US 10Y-2Y Spread</option>
-                            <option value="US_EU_2Y">US-EU 2Y Spread</option>
-                            <option value="US_UK_2Y">US-UK 2Y Spread</option>
-                            <option value="US_JP_2Y">US-JP 2Y Spread</option>
-                        </select>
+                        <h2>2Y Spreads & FX Pairs</h2>
+                        <p style="color: #888; font-size: 0.9rem; margin: 5px 0 0 0;">Click on legend items to show/hide</p>
                     </div>
                     <div class="terminal-card-body">
                         <div id="ysLoadingCharts" class="loading" style="display: none;">
@@ -4396,27 +4388,16 @@
             container.innerHTML = html;
         }
 
-        // Store data globally for chart updates
-        let ysDataCache = null;
-
         function renderYSChart(data) {
-            ysDataCache = data;  // Store data for chart selection updates
-            updateYieldSpreadChart();
-        }
-
-        function updateYieldSpreadChart() {
-            if (!ysDataCache) return;
-
             const canvas = document.getElementById('ysMainChart');
             const ctx = canvas.getContext('2d');
-            const selected = document.getElementById('ysChartSelect').value;
 
             // Destroy previous chart
             if (ysChartInstance) {
                 ysChartInstance.destroy();
             }
 
-            const historical = ysDataCache.historical;
+            const historical = data.historical;
 
             if (!historical || !historical.dates) {
                 canvas.parentElement.innerHTML = '<p style="color: #888; text-align: center; padding: 40px;">No historical data available</p>';
@@ -4424,55 +4405,51 @@
             }
 
             const datasets = [];
-            let chartConfig = {
-                yAxisLabel: '',
-                yAxisColor: '#f7931a',
-                chartTitle: ''
-            };
 
-            // FX Pairs
-            if (['EURUSD', 'GBPUSD', 'USDJPY'].includes(selected)) {
+            // Add FX Pairs
+            if (historical.fx) {
                 const fxConfigs = {
-                    'EURUSD': { color: '#00ff00', label: 'EUR/USD' },
-                    'GBPUSD': { color: '#ff00ff', label: 'GBP/USD' },
-                    'USDJPY': { color: '#ffaa00', label: 'USD/JPY' }
+                    'EURUSD': { color: '#00ff00', yAxis: 'y' },
+                    'GBPUSD': { color: '#ff00ff', yAxis: 'y' },
+                    'USDJPY': { color: '#ffaa00', yAxis: 'y2' }
                 };
 
-                if (historical.fx && historical.fx[selected]) {
-                    datasets.push({
-                        label: fxConfigs[selected].label,
-                        data: historical.fx[selected],
-                        borderColor: fxConfigs[selected].color,
-                        backgroundColor: 'transparent',
-                        borderWidth: 2,
-                        yAxisID: 'y',
-                        tension: 0.1
-                    });
-                    chartConfig.yAxisLabel = fxConfigs[selected].label;
-                    chartConfig.yAxisColor = fxConfigs[selected].color;
+                for (const [pair, config] of Object.entries(fxConfigs)) {
+                    if (historical.fx[pair]) {
+                        datasets.push({
+                            label: pair,
+                            data: historical.fx[pair],
+                            borderColor: config.color,
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            yAxisID: config.yAxis,
+                            tension: 0.1
+                        });
+                    }
                 }
             }
-            // Spreads
-            else {
+
+            // Add 2Y Spreads
+            if (historical.spreads) {
                 const spreadConfigs = {
-                    'US_10Y_2Y': { color: '#00aaff', label: 'US 10Y-2Y Spread (bp)' },
-                    'US_EU_2Y': { color: '#00dd00', label: 'US-EU 2Y Spread (bp)' },
-                    'US_UK_2Y': { color: '#dd00dd', label: 'US-UK 2Y Spread (bp)' },
-                    'US_JP_2Y': { color: '#dddd00', label: 'US-JP 2Y Spread (bp)' }
+                    'US_10Y_2Y': { color: '#00aaff', yAxis: 'y1' },
+                    'US_EU_2Y': { color: '#00dd00', yAxis: 'y1' },
+                    'US_UK_2Y': { color: '#dd00dd', yAxis: 'y1' },
+                    'US_JP_2Y': { color: '#dddd00', yAxis: 'y1' }
                 };
 
-                if (historical.spreads && historical.spreads[selected]) {
-                    datasets.push({
-                        label: spreadConfigs[selected].label,
-                        data: historical.spreads[selected],
-                        borderColor: spreadConfigs[selected].color,
-                        backgroundColor: 'transparent',
-                        borderWidth: 2,
-                        yAxisID: 'y',
-                        tension: 0.1
-                    });
-                    chartConfig.yAxisLabel = spreadConfigs[selected].label;
-                    chartConfig.yAxisColor = spreadConfigs[selected].color;
+                for (const [key, values] of Object.entries(historical.spreads)) {
+                    if (spreadConfigs[key]) {
+                        datasets.push({
+                            label: key,
+                            data: values,
+                            borderColor: spreadConfigs[key].color,
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            yAxisID: spreadConfigs[key].yAxis,
+                            tension: 0.1
+                        });
+                    }
                 }
             }
 
@@ -4499,6 +4476,15 @@
                                     family: 'Consolas, monospace',
                                     size: 11
                                 }
+                            },
+                            onClick: function(e, legendItem, legend) {
+                                const index = legendItem.datasetIndex;
+                                const chart = legend.chart;
+                                const meta = chart.getDatasetMeta(index);
+
+                                // Toggle visibility
+                                meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+                                chart.update();
                             }
                         },
                         tooltip: {
@@ -4526,14 +4512,38 @@
                             position: 'left',
                             title: {
                                 display: true,
-                                text: chartConfig.yAxisLabel,
-                                color: chartConfig.yAxisColor
+                                text: 'FX Rates',
+                                color: '#00ff00'
                             },
                             ticks: {
-                                color: chartConfig.yAxisColor
+                                color: '#00ff00'
                             },
                             grid: {
                                 color: '#222'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: '2Y Spreads (bp)',
+                                color: '#00dd00'
+                            },
+                            ticks: {
+                                color: '#00dd00'
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        },
+                        y2: {
+                            type: 'linear',
+                            display: false,
+                            position: 'right',
+                            grid: {
+                                drawOnChartArea: false
                             }
                         }
                     }
