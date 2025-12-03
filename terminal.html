@@ -4428,28 +4428,28 @@
                 }
             }
 
-            // Add 2Y Spreads (prioritized for LTF trading)
+            // Add 2Y Spreads ONLY (LTF trading focus)
             if (historical.spreads) {
                 const spreadColors = {
                     'US_10Y_2Y': '#00aaff',     // Yield curve
-                    'US_EU_2Y': '#00dd00',      // LTF spreads
+                    'US_EU_2Y': '#00dd00',      // 2Y spreads only
                     'US_UK_2Y': '#dd00dd',
-                    'US_JP_2Y': '#dddd00',
-                    'US_EU_10Y': '#008800',     // HTF spreads (lighter)
-                    'US_UK_10Y': '#880088',
-                    'US_JP_10Y': '#888800'
+                    'US_JP_2Y': '#dddd00'
                 };
 
+                // Only show 2Y spreads (filter out 10Y)
                 for (const [key, values] of Object.entries(historical.spreads)) {
-                    datasets.push({
-                        label: key,
-                        data: values,
-                        borderColor: spreadColors[key] || '#ffffff',
-                        backgroundColor: 'transparent',
-                        borderWidth: 2,
-                        yAxisID: 'y1',
-                        tension: 0.1
-                    });
+                    if (spreadColors[key]) {  // Only add spreads in our color config
+                        datasets.push({
+                            label: key,
+                            data: values,
+                            borderColor: spreadColors[key],
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            yAxisID: 'y1',
+                            tension: 0.1
+                        });
+                    }
                 }
             }
 
