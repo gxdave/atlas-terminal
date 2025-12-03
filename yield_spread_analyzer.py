@@ -340,14 +340,32 @@ class YieldSpreadAnalyzer:
                         logger.info(f"FRED VIX: {len(vix)} points")
                 except: pass
 
-            # Calculate DXY
+            # Calculate DXY with validation
             if 'EURUSD' in data and 'USDJPY' in data and 'GBPUSD' in data:
                 try:
+                    eurusd_val = float(data['EURUSD'].iloc[-1])
+                    usdjpy_val = float(data['USDJPY'].iloc[-1])
+                    gbpusd_val = float(data['GBPUSD'].iloc[-1])
+
+                    logger.info(f"DXY inputs - EUR/USD: {eurusd_val:.4f}, USD/JPY: {usdjpy_val:.2f}, GBP/USD: {gbpusd_val:.4f}")
+
+                    # Sanity check: EUR/USD should be 1.0-1.3, USD/JPY should be 100-160, GBP/USD should be 1.1-1.4
+                    if not (0.9 < eurusd_val < 1.4):
+                        logger.error(f"EUR/USD out of range: {eurusd_val} - using FRED fallback")
+                        return pd.DataFrame()
+                    if not (100 < usdjpy_val < 160):
+                        logger.error(f"USD/JPY out of range: {usdjpy_val} - using FRED fallback")
+                        return pd.DataFrame()
+                    if not (1.0 < gbpusd_val < 1.5):
+                        logger.error(f"GBP/USD out of range: {gbpusd_val} - using FRED fallback")
+                        return pd.DataFrame()
+
                     dxy = 50.14348112 * (data['EURUSD'] ** (-0.576)) * (data['USDJPY'] ** 0.136) * (data['GBPUSD'] ** (-0.119))
                     data['DXY'] = dxy
-                    logger.info(f"DXY calc: EUR/USD={data['EURUSD'].iloc[-1]:.4f}, USD/JPY={data['USDJPY'].iloc[-1]:.2f}, GBP/USD={data['GBPUSD'].iloc[-1]:.4f} → DXY={dxy.iloc[-1]:.2f}")
+                    logger.info(f"DXY calculated: {dxy.iloc[-1]:.2f} (should be ~95-110)")
                 except Exception as e:
-                    logger.warning(f"DXY calc failed: {e}")
+                    logger.error(f"DXY calc failed: {e}", exc_info=True)
+                    return pd.DataFrame()
 
             if data:
                 df = pd.DataFrame(data)
@@ -497,8 +515,9 @@ class YieldSpreadAnalyzer:
         Calculate yield spreads (US advantage)
 
         Calculates:
-        - US Yield Curve (10Y-2Y)
-        - International spreads (US vs EU/UK/JP) if data available
+        - US Yield Curve (10Y-2Y) - HTF recession signal
+        - International 2Y spreads (US vs EU/UK/JP) - LTF trading signal
+        - International 10Y spreads (US vs EU/UK/JP) - HTF trends
 
         Args:
             yields_df: DataFrame with yield data
@@ -508,11 +527,25 @@ class YieldSpreadAnalyzer:
         """
         spreads = pd.DataFrame(index=yields_df.index)
 
-        # US Yield Curve (most important for recession signal)
+        # US Yield Curve (recession signal - HTF)
         if 'US_10Y' in yields_df.columns and 'US_2Y' in yields_df.columns:
             spreads['US_10Y_2Y'] = yields_df['US_10Y'] - yields_df['US_2Y']
 
-        # International 10Y Spreads (US advantage)
+        # ===== LTF TRADING: 2Y Spreads (faster reaction, intraday sensitive) =====
+        if 'US_2Y' in yields_df.columns:
+            if 'EU_2Y' in yields_df.columns:
+                spreads['US_EU_2Y'] = yields_df['US_2Y'] - yields_df['EU_2Y']
+                logger.debug(f"2Y Spread US-EU: {spreads['US_EU_2Y'].iloc[-1]:.2f} bp")
+
+            if 'UK_2Y' in yields_df.columns:
+                spreads['US_UK_2Y'] = yields_df['US_2Y'] - yields_df['UK_2Y']
+                logger.debug(f"2Y Spread US-UK: {spreads['US_UK_2Y'].iloc[-1]:.2f} bp")
+
+            if 'JP_2Y' in yields_df.columns:
+                spreads['US_JP_2Y'] = yields_df['US_2Y'] - yields_df['JP_2Y']
+                logger.debug(f"2Y Spread US-JP: {spreads['US_JP_2Y'].iloc[-1]:.2f} bp")
+
+        # ===== HTF TRENDS: 10Y Spreads (slower reaction, position trading) =====
         if 'US_10Y' in yields_df.columns:
             if 'EU_10Y' in yields_df.columns:
                 spreads['US_EU_10Y'] = yields_df['US_10Y'] - yields_df['EU_10Y']
@@ -522,9 +555,6 @@ class YieldSpreadAnalyzer:
 
             if 'JP_10Y' in yields_df.columns:
                 spreads['US_JP_10Y'] = yields_df['US_10Y'] - yields_df['JP_10Y']
-
-        # Note: 2Y spreads would require 2Y data from FRED
-        # Currently focusing on 10Y as most widely available
 
         return spreads
 
