@@ -3786,6 +3786,9 @@
             }).join('');
         }
 
+        // Global COT chart instance
+        let cotChartInstance = null;
+
         function renderCOTChart(assets) {
             const chartContainer = document.getElementById('cotChartContainer');
 
@@ -3794,65 +3797,115 @@
                 return;
             }
 
-            // Sort assets by net position percentage (long% - short%)
-            const sortedAssets = [...assets].sort((a, b) => (b.longPct - b.shortPct) - (a.longPct - a.shortPct));
+            // Destroy previous chart
+            if (cotChartInstance) {
+                cotChartInstance.destroy();
+            }
 
-            // Calculate max value for scaling
-            const maxValue = 100;
+            // Create canvas if it doesn't exist
+            chartContainer.innerHTML = '<canvas id="cotChartCanvas" style="max-height: 400px;"></canvas>';
+            const canvas = document.getElementById('cotChartCanvas');
+            const ctx = canvas.getContext('2d');
 
-            // Create chart HTML
-            chartContainer.innerHTML = `
-                <div style="padding: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <div style="display: flex; gap: 30px;">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <div style="width: 20px; height: 15px; background: #f7931a;"></div>
-                                <span style="color: #888; font-size: 0.85rem;">Long</span>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <div style="width: 20px; height: 15px; background: #000; border: 2px solid #f7931a; box-sizing: border-box;"></div>
-                                <span style="color: #888; font-size: 0.85rem;">Short</span>
-                            </div>
-                        </div>
-                    </div>
+            // Sort assets by net position
+            const sortedAssets = [...assets].sort((a, b) => b.netPosition - a.netPosition);
 
-                    <div style="position: relative;">
-                        <!-- Y-axis labels -->
-                        <div style="display: flex; flex-direction: column; justify-content: space-between; position: absolute; left: 0; top: 0; height: 100%; padding-right: 10px;">
-                            <span style="color: #666; font-size: 0.75rem;">100%</span>
-                            <span style="color: #666; font-size: 0.75rem;">80%</span>
-                            <span style="color: #666; font-size: 0.75rem;">60%</span>
-                            <span style="color: #666; font-size: 0.75rem;">40%</span>
-                            <span style="color: #666; font-size: 0.75rem;">20%</span>
-                            <span style="color: #666; font-size: 0.75rem;">0%</span>
-                        </div>
+            // Prepare data
+            const labels = sortedAssets.map(a => a.name);
+            const longData = sortedAssets.map(a => a.longPct);
+            const shortData = sortedAssets.map(a => a.shortPct);
+            const netPositions = sortedAssets.map(a => a.netPosition);
 
-                        <!-- Chart bars -->
-                        <div style="margin-left: 50px; display: flex; gap: 5px; align-items: flex-end; height: 350px; border-bottom: 2px solid #333; border-left: 2px solid #333; padding: 10px 10px 30px 10px;">
-                            ${sortedAssets.map(asset => {
-                                const longHeight = (asset.longPct / maxValue) * 100;
-                                const shortHeight = (asset.shortPct / maxValue) * 100;
-
-                                return `
-                                    <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; position: relative; min-width: 40px;">
-                                        <div style="display: flex; gap: 2px; height: 100%; align-items: flex-end;">
-                                            <div style="flex: 1; background: #f7931a; height: ${longHeight}%; min-height: 2px; position: relative;"
-                                                 title="${asset.name}: ${asset.longPct.toFixed(1)}% Long">
-                                            </div>
-                                            <div style="flex: 1; background: #000; border: 2px solid #f7931a; height: ${shortHeight}%; min-height: 2px; position: relative; box-sizing: border-box;"
-                                                 title="${asset.name}: ${asset.shortPct.toFixed(1)}% Short">
-                                            </div>
-                                        </div>
-                                        <div style="position: absolute; bottom: -25px; left: 50%; transform: translateX(-50%) rotate(0deg); white-space: nowrap; font-size: 0.75rem; color: #888; text-align: center;">
-                                            ${asset.name}
-                                        </div>
-                                    </div>
-                                `;
-                            }).join('')}
-                        </div>
-                    </div>
-                </div>
-            `;
+            cotChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Long %',
+                            data: longData,
+                            backgroundColor: '#00ff00',
+                            borderColor: '#00ff00',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Short %',
+                            data: shortData,
+                            backgroundColor: '#ff4444',
+                            borderColor: '#ff4444',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                color: '#f7931a',
+                                font: {
+                                    family: 'Consolas, monospace',
+                                    size: 11
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(10, 10, 10, 0.95)',
+                            titleColor: '#f7931a',
+                            bodyColor: '#ffffff',
+                            borderColor: '#f7931a',
+                            borderWidth: 2,
+                            padding: 12,
+                            callbacks: {
+                                afterLabel: function(context) {
+                                    const index = context.dataIndex;
+                                    const asset = sortedAssets[index];
+                                    return [
+                                        `Net: ${asset.netPosition > 0 ? '+' : ''}${asset.netPosition.toLocaleString()}`,
+                                        `Change: ${asset.netChange > 0 ? '+' : ''}${asset.netChange.toFixed(2)}%`,
+                                        `OI: ${asset.openInterest.toLocaleString()}K`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: '#888',
+                                font: {
+                                    family: 'Consolas, monospace',
+                                    size: 11
+                                }
+                            },
+                            grid: {
+                                color: '#222'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                color: '#888',
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            },
+                            grid: {
+                                color: '#222'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Positioning %',
+                                color: '#f7931a'
+                            }
+                        }
+                    }
+                }
+            });
         }
 
         async function refreshCOTData() {
