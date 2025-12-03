@@ -3824,15 +3824,15 @@
                         {
                             label: 'Long %',
                             data: longData,
-                            backgroundColor: '#00ff00',
-                            borderColor: '#00ff00',
+                            backgroundColor: '#ffa500',
+                            borderColor: '#333',
                             borderWidth: 1
                         },
                         {
                             label: 'Short %',
                             data: shortData,
-                            backgroundColor: '#ff4444',
-                            borderColor: '#ff4444',
+                            backgroundColor: '#1a1a1a',
+                            borderColor: '#333',
                             borderWidth: 1
                         }
                     ]
@@ -3840,6 +3840,7 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    indexAxis: 'x',
                     plugins: {
                         legend: {
                             display: true,
@@ -3849,7 +3850,9 @@
                                 font: {
                                     family: 'Consolas, monospace',
                                     size: 11
-                                }
+                                },
+                                boxWidth: 20,
+                                padding: 15
                             }
                         },
                         tooltip: {
@@ -3874,18 +3877,21 @@
                     },
                     scales: {
                         x: {
+                            stacked: true,
                             ticks: {
                                 color: '#888',
                                 font: {
                                     family: 'Consolas, monospace',
-                                    size: 11
+                                    size: 10
                                 }
                             },
                             grid: {
-                                color: '#222'
+                                color: '#222',
+                                display: false
                             }
                         },
                         y: {
+                            stacked: true,
                             beginAtZero: true,
                             max: 100,
                             ticks: {
@@ -3895,7 +3901,7 @@
                                 }
                             },
                             grid: {
-                                color: '#222'
+                                color: '#333'
                             },
                             title: {
                                 display: true,
