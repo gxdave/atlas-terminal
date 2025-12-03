@@ -1712,7 +1712,7 @@
                 <!-- Charts -->
                 <div class="terminal-card">
                     <div class="terminal-card-header">
-                        <h2>2Y Spreads & FX Pairs</h2>
+                        <h2>Yield Spreads & FX Pairs</h2>
                         <p style="color: #888; font-size: 0.9rem; margin: 5px 0 0 0;">Click on legend items to show/hide</p>
                     </div>
                     <div class="terminal-card-body">
@@ -4429,13 +4429,19 @@
                 }
             }
 
-            // Add 2Y Spreads
+            // Add ALL Yield Spreads (both 2Y and 10Y)
             if (historical.spreads) {
                 const spreadConfigs = {
+                    // Yield Curve
                     'US_10Y_2Y': { color: '#00aaff', yAxis: 'y1' },
-                    'US_EU_2Y': { color: '#00dd00', yAxis: 'y1' },
-                    'US_UK_2Y': { color: '#dd00dd', yAxis: 'y1' },
-                    'US_JP_2Y': { color: '#dddd00', yAxis: 'y1' }
+                    // 2Y Spreads (LTF - bright colors)
+                    'US_EU_2Y': { color: '#00ff00', yAxis: 'y1' },
+                    'US_UK_2Y': { color: '#ff00ff', yAxis: 'y1' },
+                    'US_JP_2Y': { color: '#ffff00', yAxis: 'y1' },
+                    // 10Y Spreads (HTF - muted colors)
+                    'US_EU_10Y': { color: '#008800', yAxis: 'y1' },
+                    'US_UK_10Y': { color: '#880088', yAxis: 'y1' },
+                    'US_JP_10Y': { color: '#888800', yAxis: 'y1' }
                 };
 
                 for (const [key, values] of Object.entries(historical.spreads)) {
