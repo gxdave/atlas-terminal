@@ -340,44 +340,9 @@ class YieldSpreadAnalyzer:
                         logger.info(f"FRED VIX: {len(vix)} points")
                 except: pass
 
-            # Calculate DXY with validation
+            # DXY removed - show FX pairs directly instead
             if 'EURUSD' in data and 'USDJPY' in data and 'GBPUSD' in data:
-                try:
-                    eurusd_val = float(data['EURUSD'].iloc[-1])
-                    usdjpy_val = float(data['USDJPY'].iloc[-1])
-                    gbpusd_val = float(data['GBPUSD'].iloc[-1])
-
-                    logger.info(f"DXY inputs - EUR/USD: {eurusd_val:.4f}, USD/JPY: {usdjpy_val:.2f}, GBP/USD: {gbpusd_val:.4f}")
-
-                    # Sanity check: EUR/USD should be 1.0-1.3, USD/JPY should be 100-160, GBP/USD should be 1.1-1.4
-                    if not (0.9 < eurusd_val < 1.4):
-                        logger.error(f"EUR/USD out of range: {eurusd_val} - using FRED fallback")
-                        return pd.DataFrame()
-                    if not (100 < usdjpy_val < 160):
-                        logger.error(f"USD/JPY out of range: {usdjpy_val} - using FRED fallback")
-                        return pd.DataFrame()
-                    if not (1.0 < gbpusd_val < 1.5):
-                        logger.error(f"GBP/USD out of range: {gbpusd_val} - using FRED fallback")
-                        return pd.DataFrame()
-
-                    # Simplified DXY using weighted geometric mean (adjusted for 3 major pairs)
-                    # Problem: Original formula constant 50.14 is for 6 currencies
-                    # With only EUR/JPY/GBP (83% of weight), need different calibration
-
-                    # Calculate using ratio to base period where DXY=100
-                    # Empirical adjustment factor for 3-pair approximation
-                    eurusd_factor = data['EURUSD'] ** (-0.576)
-                    usdjpy_factor = (data['USDJPY'] / 110.0) ** 0.136  # Normalize JPY around historical mean
-                    gbpusd_factor = data['GBPUSD'] ** (-0.119)
-
-                    # Adjusted constant found empirically: when EUR=1.16, JPY=156, GBP=1.32 → DXY≈99
-                    dxy = 111.5 * eurusd_factor * usdjpy_factor * gbpusd_factor
-
-                    data['DXY'] = dxy
-                    logger.info(f"DXY calc (3-pair approx): {dxy.iloc[-1]:.2f}")
-                except Exception as e:
-                    logger.error(f"DXY calc failed: {e}", exc_info=True)
-                    return pd.DataFrame()
+                logger.info(f"FX pairs: EUR/USD={data['EURUSD'].iloc[-1]:.4f}, USD/JPY={data['USDJPY'].iloc[-1]:.2f}, GBP/USD={data['GBPUSD'].iloc[-1]:.4f}")
 
             if data:
                 df = pd.DataFrame(data)
@@ -459,28 +424,9 @@ class YieldSpreadAnalyzer:
                     except Exception as e:
                         logger.warning(f"Failed to fetch {name} from FRED: {e}")
 
-                # Calculate DXY proxy from major currency pairs (ICE Dollar Index formula)
-                # DXY = 50.14348112 × (EUR/USD)^(-0.576) × (USD/JPY)^(0.136) × (GBP/USD)^(-0.119)
-                # IMPORTANT: Use market convention rates (already inverted above)
+                # DXY removed - FX pairs shown directly in charts instead
                 if 'EURUSD' in data and 'USDJPY' in data and 'GBPUSD' in data:
-                    try:
-                        # ICE Dollar Index formula with market convention rates
-                        # EUR/USD = 1.16, USD/JPY = 156, GBP/USD = 1.32 → DXY ≈ 99.3
-                        eurusd = data['EURUSD']  # Market format (e.g., 1.16)
-                        usdjpy = data['USDJPY']  # Market format (e.g., 156)
-                        gbpusd = data['GBPUSD']  # Market format (e.g., 1.32)
-
-                        dxy_proxy = (
-                            50.14348112 *
-                            (eurusd ** (-0.576)) *  # Negative exponent (inverse relationship)
-                            (usdjpy ** (0.136)) *   # Positive exponent (direct relationship)
-                            (gbpusd ** (-0.119))    # Negative exponent (inverse relationship)
-                        )
-
-                        data['DXY'] = dxy_proxy
-                        logger.info(f"DXY calculation - EUR/USD: {eurusd.iloc[-1]:.4f}, USD/JPY: {usdjpy.iloc[-1]:.2f}, GBP/USD: {gbpusd.iloc[-1]:.4f} → DXY: {dxy_proxy.iloc[-1]:.2f}")
-                    except Exception as e:
-                        logger.warning(f"Failed to calculate DXY proxy: {e}")
+                    logger.info(f"FRED FX: EUR/USD={data['EURUSD'].iloc[-1]:.4f}, USD/JPY={data['USDJPY'].iloc[-1]:.2f}, GBP/USD={data['GBPUSD'].iloc[-1]:.4f}")
 
                 if data:
                     df = pd.DataFrame(data)
