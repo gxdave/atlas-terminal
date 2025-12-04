@@ -2525,67 +2525,68 @@ async def get_seasonality(symbol: str):
     try:
         # CSV mapping for available assets
         csv_mapping = {
-            'EURUSD': 'EURUSD/EURUSD_D1.csv',
-            'GBPUSD': 'GBPUSD/GBPUSD_D1.csv',
-            'USDJPY': 'USDJPY/USDJPY_D1.csv',
-            'USDCHF': 'USDCHF/USDCHF_D1.csv',
-            'USDCAD': 'USDCAD/USDCAD_D1.csv',
-            'XAUUSD': 'XAUUSD/XAUUSD_D1.csv',
-            'BTCUSD': 'BTCUSD/BTCUSD_D1.csv',
-            'US500': 'US500/USA500IDXUSD_D1.csv',
+            'EURUSD': 'EURUSD/EURUSD_D1',
+            'GBPUSD': 'GBPUSD/GBPUSD_D1',
+            'USDJPY': 'USDJPY/USDJPY_D1',
+            'USDCHF': 'USDCHF/USDCHF_D1',
+            'USDCAD': 'USDCAD/USDCAD_D1',
+            'XAUUSD': 'XAUUSD/XAUUSD_D1',
+            'BTCUSD': 'BTCUSD/BTCUSD_D1',
+            'US500': 'US500/USA500IDXUSD_D1',
         }
 
-        csv_path = csv_mapping.get(symbol)
-        if not csv_path:
+        dataset_id = csv_mapping.get(symbol)
+        if not dataset_id:
             raise HTTPException(status_code=404, detail=f"No data available for {symbol}")
 
-        full_path = os.path.join(DATA_ROOT, csv_path)
+        # Use same path as hosted datasets API
+        data_root = os.environ.get("DATA_ROOT_PATH", "data/datasets")
+        full_path = os.path.join(data_root, f"{dataset_id}.csv")
+
+        logger.info(f"Loading seasonality data from: {full_path}")
 
         if not os.path.exists(full_path):
-            raise HTTPException(status_code=404, detail=f"CSV file not found for {symbol}")
+            raise HTTPException(status_code=404, detail=f"CSV file not found for {symbol}: {full_path}")
 
-        # Load CSV directly (try tab separator first, then comma)
-        hist = pd.read_csv(full_path, sep='\t')
-        if len(hist.columns) == 1:
-            # If only one column, try comma separator
-            hist = pd.read_csv(full_path, sep=',')
-        logger.info(f"CSV columns for {symbol}: {list(hist.columns)}")
+        # Load CSV (same logic as analyze/hosted)
+        try:
+            hist = pd.read_csv(full_path, sep='\t', header=0, index_col=False)
+        except:
+            hist = pd.read_csv(full_path)
 
-        # Parse time column - try all possible variations
+        logger.info(f"CSV columns for {symbol}: {list(hist.columns)}, rows: {len(hist)}")
+
+        # Find time column
         time_col = None
-        for col in hist.columns:
-            if col.lower() in ['time', 'timestamp', 'date', 'datetime']:
+        for col in ['Time', 'time', 'Date', 'date', 'timestamp', 'Timestamp']:
+            if col in hist.columns:
                 time_col = col
                 break
 
-        if time_col:
-            hist[time_col] = pd.to_datetime(hist[time_col])
-            hist.set_index(time_col, inplace=True)
-        else:
-            # Try first column as datetime
-            first_col = hist.columns[0]
-            try:
-                hist[first_col] = pd.to_datetime(hist[first_col])
-                hist.set_index(first_col, inplace=True)
-                logger.info(f"Using first column '{first_col}' as time index")
-            except:
-                raise HTTPException(status_code=500, detail=f"No time column found in CSV for {symbol}. Columns: {list(hist.columns)}")
+        if time_col is None:
+            raise HTTPException(status_code=500, detail=f"No time column found. Columns: {list(hist.columns)}")
 
-        # Rename columns - case insensitive
-        new_columns = {}
-        for col in hist.columns:
-            col_lower = col.lower()
-            if col_lower == 'open':
-                new_columns[col] = 'Open'
-            elif col_lower == 'high':
-                new_columns[col] = 'High'
-            elif col_lower == 'low':
-                new_columns[col] = 'Low'
-            elif col_lower == 'close':
-                new_columns[col] = 'Close'
-        hist = hist.rename(columns=new_columns)
+        # Parse and set index
+        hist[time_col] = pd.to_datetime(hist[time_col])
+        hist.set_index(time_col, inplace=True)
+        hist.sort_index(inplace=True)
+
+        # Ensure OHLC columns exist (they should already be capitalized)
+        required_cols = ['Open', 'High', 'Low', 'Close']
+        for col in required_cols:
+            if col not in hist.columns:
+                raise HTTPException(status_code=500, detail=f"Missing column: {col}. Available: {list(hist.columns)}")
+
+        # Convert to numeric
+        for col in required_cols:
+            hist[col] = pd.to_numeric(hist[col], errors='coerce')
+
+        # Remove NaN
+        hist = hist.dropna(subset=required_cols)
 
         data_source = "Local CSV Data"
+
+        logger.info(f"Loaded {len(hist)} rows for {symbol}, date range: {hist.index.min()} to {hist.index.max()}")
 
         if hist is None or hist.empty:
             raise HTTPException(
