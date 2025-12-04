@@ -2519,17 +2519,48 @@ async def get_seasonality_assets():
 @app.get("/api/seasonality/{symbol}")
 async def get_seasonality(symbol: str):
     """
-    Calculate seasonality data for a given symbol using multiple data sources
+    Calculate seasonality data for a given symbol using local CSV data
     Returns monthly average returns, quarterly performance, and historical heatmap
     """
     try:
-        # Fetch data using fallback system
-        hist, data_source = get_historical_data(symbol)
+        # CSV mapping for available assets
+        csv_mapping = {
+            'EURUSD': 'EURUSD/EURUSD_D1.csv',
+            'GBPUSD': 'GBPUSD/GBPUSD_D1.csv',
+            'USDJPY': 'USDJPY/USDJPY_D1.csv',
+            'USDCHF': 'USDCHF/USDCHF_D1.csv',
+            'USDCAD': 'USDCAD/USDCAD_D1.csv',
+            'XAUUSD': 'XAUUSD/XAUUSD_D1.csv',
+            'BTCUSD': 'BTCUSD/BTCUSD_D1.csv',
+            'US500': 'US500/USA500IDXUSD_D1.csv',
+        }
+
+        csv_path = csv_mapping.get(symbol)
+        if not csv_path:
+            raise HTTPException(status_code=404, detail=f"No data available for {symbol}")
+
+        full_path = os.path.join(DATA_ROOT, csv_path)
+
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail=f"CSV file not found for {symbol}")
+
+        # Load CSV directly
+        hist = pd.read_csv(full_path)
+
+        # Parse time column
+        if 'time' in hist.columns:
+            hist['time'] = pd.to_datetime(hist['time'])
+            hist.set_index('time', inplace=True)
+
+        # Rename columns
+        hist = hist.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close'})
+
+        data_source = "Local CSV Data"
 
         if hist is None or hist.empty:
             raise HTTPException(
                 status_code=503,
-                detail=f"Unable to fetch data for {symbol}. All free data sources (CoinCap for crypto, Twelve Data & Alpha Vantage for stocks) failed. This may be due to rate limits. Please try again in a few minutes or select a different asset."
+                detail=f"Unable to load data for {symbol}."
             )
 
         logger.info(f"Using {data_source} for {symbol} seasonality analysis")

@@ -1540,26 +1540,23 @@
                         </p>
 
                         <!-- Asset Selection -->
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
-                            <div class="form-group">
-                                <label for="seasonalityCategory">Asset Category</label>
-                                <select id="seasonalityCategory" onchange="updateSeasonalityAssets()">
-                                    <option value="">Select Category...</option>
-                                    <option value="forex">Forex</option>
-                                    <option value="indices">Indices</option>
-                                    <option value="commodities">Commodities</option>
-                                    <option value="crypto">Crypto</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
+                        <div style="display: flex; gap: 20px; margin-bottom: 30px; align-items: flex-end;">
+                            <div class="form-group" style="flex: 1;">
                                 <label for="seasonalityAsset">Asset</label>
                                 <select id="seasonalityAsset">
-                                    <option value="">Select category first...</option>
+                                    <option value="EURUSD">EUR/USD</option>
+                                    <option value="GBPUSD">GBP/USD</option>
+                                    <option value="USDJPY">USD/JPY</option>
+                                    <option value="USDCHF">USD/CHF</option>
+                                    <option value="USDCAD">USD/CAD</option>
+                                    <option value="XAUUSD">Gold (XAU/USD)</option>
+                                    <option value="BTCUSD">Bitcoin (BTC/USD)</option>
+                                    <option value="US500">S&P 500</option>
                                 </select>
                             </div>
-                            <div class="form-group" style="display: flex; align-items: flex-end;">
-                                <button class="btn" onclick="loadSeasonalityData()" style="width: 100%;">
-                                    START ANALYSIS
+                            <div class="form-group">
+                                <button class="btn" onclick="loadSeasonalityData()" style="padding: 12px 30px;">
+                                    ANALYZE
                                 </button>
                             </div>
                         </div>
@@ -4094,43 +4091,7 @@
 
         // ===== SEASONALITY FUNCTIONS =====
 
-        // Asset mapping for seasonality (only assets with CSV data available)
-        const seasonalityAssets = {
-            forex: [
-                { name: "EUR/USD", symbol: "EURUSD" },
-                { name: "GBP/USD", symbol: "GBPUSD" },
-                { name: "USD/JPY", symbol: "USDJPY" },
-                { name: "USD/CHF", symbol: "USDCHF" },
-                { name: "USD/CAD", symbol: "USDCAD" }
-            ],
-            indices: [
-                { name: "S&P 500", symbol: "US500" }
-            ],
-            commodities: [
-                { name: "Gold", symbol: "XAUUSD" }
-            ],
-            crypto: [
-                { name: "Bitcoin", symbol: "BTCUSD" }
-            ]
-        };
         let monthlyChart = null;
-
-        // Update asset dropdown based on category
-        function updateSeasonalityAssets() {
-            const category = document.getElementById('seasonalityCategory').value;
-            const assetSelect = document.getElementById('seasonalityAsset');
-
-            if (!category) {
-                assetSelect.innerHTML = '<option value="">Select category first...</option>';
-                return;
-            }
-
-            // Populate dropdown from local data
-            const assets = seasonalityAssets[category] || [];
-            assetSelect.innerHTML = assets.map(asset =>
-                `<option value="${asset.symbol}">${asset.name}</option>`
-            ).join('');
-        }
 
         // Load seasonality data for selected asset
         async function loadSeasonalityData() {
