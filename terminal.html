@@ -4178,9 +4178,9 @@
 
             const labels = monthlyData.map(m => m.month);
             const returns = monthlyData.map(m => m.avg_return);
-            // Orange for positive, dark with orange border for negative (like Institutional Positioning)
+            // Orange with black border for positive, black with orange border for negative
             const bgColors = returns.map(r => r > 0 ? '#ffa500' : '#1a1a1a');
-            const borderColors = returns.map(r => '#ffa500');
+            const borderColors = returns.map(r => r > 0 ? '#000000' : '#ffa500');
 
             monthlyChart = new Chart(ctx, {
                 type: 'bar',
