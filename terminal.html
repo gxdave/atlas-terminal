@@ -4075,12 +4075,43 @@
 
         // ===== SEASONALITY FUNCTIONS =====
 
-        // Asset mapping for seasonality
-        const seasonalityAssets = {};
+        // Asset mapping for seasonality (same as Probability Analyzer)
+        const seasonalityAssets = {
+            forex: [
+                { name: "EUR/USD", symbol: "EURUSD" },
+                { name: "GBP/USD", symbol: "GBPUSD" },
+                { name: "USD/JPY", symbol: "USDJPY" },
+                { name: "AUD/USD", symbol: "AUDUSD" },
+                { name: "USD/CHF", symbol: "USDCHF" }
+            ],
+            indices: [
+                { name: "S&P 500", symbol: "SPX" },
+                { name: "Nasdaq 100", symbol: "NDX" },
+                { name: "Dow Jones", symbol: "DJI" },
+                { name: "DAX", symbol: "DAX" }
+            ],
+            commodities: [
+                { name: "Gold", symbol: "XAUUSD" },
+                { name: "Silver", symbol: "XAGUSD" },
+                { name: "Crude Oil", symbol: "CL" }
+            ],
+            crypto: [
+                { name: "Bitcoin", symbol: "BTCUSD" },
+                { name: "Ethereum", symbol: "ETHUSD" }
+            ],
+            stocks: [
+                { name: "Apple", symbol: "AAPL" },
+                { name: "Microsoft", symbol: "MSFT" },
+                { name: "Tesla", symbol: "TSLA" },
+                { name: "Amazon", symbol: "AMZN" },
+                { name: "Google", symbol: "GOOGL" },
+                { name: "NVIDIA", symbol: "NVDA" }
+            ]
+        };
         let monthlyChart = null;
 
         // Update asset dropdown based on category
-        async function updateSeasonalityAssets() {
+        function updateSeasonalityAssets() {
             const category = document.getElementById('seasonalityCategory').value;
             const assetSelect = document.getElementById('seasonalityAsset');
 
@@ -4089,19 +4120,7 @@
                 return;
             }
 
-            // Fetch assets if not cached
-            if (Object.keys(seasonalityAssets).length === 0) {
-                try {
-                    const response = await fetch('/api/seasonality/assets');
-                    const data = await response.json();
-                    Object.assign(seasonalityAssets, data);
-                } catch (error) {
-                    console.error('Error loading assets:', error);
-                    return;
-                }
-            }
-
-            // Populate dropdown
+            // Populate dropdown from local data
             const assets = seasonalityAssets[category] || [];
             assetSelect.innerHTML = assets.map(asset =>
                 `<option value="${asset.symbol}">${asset.name}</option>`
