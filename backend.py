@@ -2546,11 +2546,12 @@ async def get_seasonality(symbol: str):
 
         # Load CSV directly
         hist = pd.read_csv(full_path)
+        logger.info(f"CSV columns for {symbol}: {list(hist.columns)}")
 
-        # Parse time column (handle both 'Time' and 'time')
+        # Parse time column - try all possible variations
         time_col = None
-        for col in ['Time', 'time', 'timestamp', 'Timestamp', 'date', 'Date']:
-            if col in hist.columns:
+        for col in hist.columns:
+            if col.lower() in ['time', 'timestamp', 'date', 'datetime']:
                 time_col = col
                 break
 
@@ -2558,14 +2559,28 @@ async def get_seasonality(symbol: str):
             hist[time_col] = pd.to_datetime(hist[time_col])
             hist.set_index(time_col, inplace=True)
         else:
-            raise HTTPException(status_code=500, detail=f"No time column found in CSV for {symbol}")
+            # Try first column as datetime
+            first_col = hist.columns[0]
+            try:
+                hist[first_col] = pd.to_datetime(hist[first_col])
+                hist.set_index(first_col, inplace=True)
+                logger.info(f"Using first column '{first_col}' as time index")
+            except:
+                raise HTTPException(status_code=500, detail=f"No time column found in CSV for {symbol}. Columns: {list(hist.columns)}")
 
-        # Rename columns (handle both lowercase and uppercase)
-        column_mapping = {
-            'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close',
-            'Open': 'Open', 'High': 'High', 'Low': 'Low', 'Close': 'Close'
-        }
-        hist = hist.rename(columns=column_mapping)
+        # Rename columns - case insensitive
+        new_columns = {}
+        for col in hist.columns:
+            col_lower = col.lower()
+            if col_lower == 'open':
+                new_columns[col] = 'Open'
+            elif col_lower == 'high':
+                new_columns[col] = 'High'
+            elif col_lower == 'low':
+                new_columns[col] = 'Low'
+            elif col_lower == 'close':
+                new_columns[col] = 'Close'
+        hist = hist.rename(columns=new_columns)
 
         data_source = "Local CSV Data"
 
