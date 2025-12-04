@@ -2544,8 +2544,11 @@ async def get_seasonality(symbol: str):
         if not os.path.exists(full_path):
             raise HTTPException(status_code=404, detail=f"CSV file not found for {symbol}")
 
-        # Load CSV directly
-        hist = pd.read_csv(full_path)
+        # Load CSV directly (try tab separator first, then comma)
+        hist = pd.read_csv(full_path, sep='\t')
+        if len(hist.columns) == 1:
+            # If only one column, try comma separator
+            hist = pd.read_csv(full_path, sep=',')
         logger.info(f"CSV columns for {symbol}: {list(hist.columns)}")
 
         # Parse time column - try all possible variations
