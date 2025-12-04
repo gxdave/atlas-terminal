@@ -4178,7 +4178,9 @@
 
             const labels = monthlyData.map(m => m.month);
             const returns = monthlyData.map(m => m.avg_return);
-            const colors = returns.map(r => r > 0 ? '#00ff88' : '#ff4444');
+            // Orange for positive, dark with orange border for negative (like Institutional Positioning)
+            const bgColors = returns.map(r => r > 0 ? '#ffa500' : '#1a1a1a');
+            const borderColors = returns.map(r => '#ffa500');
 
             monthlyChart = new Chart(ctx, {
                 type: 'bar',
@@ -4187,9 +4189,9 @@
                     datasets: [{
                         label: 'Avg Return (%)',
                         data: returns,
-                        backgroundColor: colors,
-                        borderColor: colors,
-                        borderWidth: 1
+                        backgroundColor: bgColors,
+                        borderColor: borderColors,
+                        borderWidth: 2
                     }]
                 },
                 options: {
