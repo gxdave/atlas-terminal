@@ -2547,13 +2547,25 @@ async def get_seasonality(symbol: str):
         # Load CSV directly
         hist = pd.read_csv(full_path)
 
-        # Parse time column
-        if 'time' in hist.columns:
-            hist['time'] = pd.to_datetime(hist['time'])
-            hist.set_index('time', inplace=True)
+        # Parse time column (handle both 'Time' and 'time')
+        time_col = None
+        for col in ['Time', 'time', 'timestamp', 'Timestamp', 'date', 'Date']:
+            if col in hist.columns:
+                time_col = col
+                break
 
-        # Rename columns
-        hist = hist.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close'})
+        if time_col:
+            hist[time_col] = pd.to_datetime(hist[time_col])
+            hist.set_index(time_col, inplace=True)
+        else:
+            raise HTTPException(status_code=500, detail=f"No time column found in CSV for {symbol}")
+
+        # Rename columns (handle both lowercase and uppercase)
+        column_mapping = {
+            'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close',
+            'Open': 'Open', 'High': 'High', 'Low': 'Low', 'Close': 'Close'
+        }
+        hist = hist.rename(columns=column_mapping)
 
         data_source = "Local CSV Data"
 
