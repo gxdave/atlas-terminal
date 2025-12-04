@@ -4390,10 +4390,12 @@
                 for (const [key, value] of Object.entries(current.spreads)) {
                     const zscore = current.spread_zscores ? current.spread_zscores[key] : null;
                     const zscoreColor = zscore ? (Math.abs(zscore) > 2 ? '#ff4444' : (Math.abs(zscore) > 1 ? '#ffaa00' : '#00ff00')) : '#888';
+                    // Rename 10Y labels to 2Y
+                    const displayLabel = key.replace('_10Y', '_2Y');
 
                     html += `
                         <div class="stat-box">
-                            <div class="stat-label">${key}</div>
+                            <div class="stat-label">${displayLabel}</div>
                             <div class="stat-value">${value.toFixed(2)} bp</div>
                             ${zscore !== null ? `<div style="font-size: 0.8rem; color: ${zscoreColor}; margin-top: 5px;">Z: ${zscore.toFixed(2)}σ</div>` : ''}
                         </div>
