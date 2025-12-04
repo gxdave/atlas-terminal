@@ -14,6 +14,9 @@ from demo_data_generator import PREGENERATED_DATA, get_demo_data
 
 logger = logging.getLogger(__name__)
 
+# Path to hosted CSV datasets
+DATA_ROOT = os.environ.get("DATA_ROOT_PATH", "data/datasets")
+
 class DataSourceManager:
     """Manages multiple data sources with automatic fallback"""
 
@@ -263,11 +266,84 @@ class DataSourceManager:
             logger.warning(f"Alpha Vantage fetch failed for {symbol}: {str(e)}")
             return None
 
+    def fetch_local_csv(self, symbol: str) -> pd.DataFrame:
+        """
+        Fetch data from local CSV files (D1 timeframe for seasonality)
+        Returns DataFrame with OHLCV data
+        """
+        try:
+            # Map symbol to CSV path
+            csv_mapping = {
+                'EURUSD': 'EURUSD/EURUSD_D1.csv',
+                'GBPUSD': 'GBPUSD/GBPUSD_D1.csv',
+                'USDJPY': 'USDJPY/USDJPY_D1.csv',
+                'USDCHF': 'USDCHF/USDCHF_D1.csv',
+                'USDCAD': 'USDCAD/USDCAD_D1.csv',
+                'XAUUSD': 'XAUUSD/XAUUSD_D1.csv',
+                'BTCUSD': 'BTCUSD/BTCUSD_D1.csv',
+                'US500': 'US500/USA500IDXUSD_D1.csv',
+                'SPX': 'US500/USA500IDXUSD_D1.csv',
+            }
+
+            csv_path = csv_mapping.get(symbol)
+            if not csv_path:
+                logger.warning(f"No CSV mapping for {symbol}")
+                return None
+
+            full_path = os.path.join(DATA_ROOT, csv_path)
+
+            if not os.path.exists(full_path):
+                logger.warning(f"CSV file not found: {full_path}")
+                return None
+
+            logger.info(f"Loading CSV: {full_path}")
+            df = pd.read_csv(full_path)
+
+            # Parse time column and set as index
+            if 'time' in df.columns:
+                df['time'] = pd.to_datetime(df['time'])
+                df.set_index('time', inplace=True)
+            elif 'timestamp' in df.columns:
+                df['timestamp'] = pd.to_datetime(df['timestamp'])
+                df.set_index('timestamp', inplace=True)
+
+            # Rename columns to standard format
+            column_mapping = {
+                'open': 'Open',
+                'high': 'High',
+                'low': 'Low',
+                'close': 'Close',
+                'volume': 'Volume',
+                'tick_volume': 'Volume'
+            }
+            df = df.rename(columns=column_mapping)
+
+            # Ensure required columns exist
+            required_cols = ['Open', 'High', 'Low', 'Close']
+            if not all(col in df.columns for col in required_cols):
+                logger.warning(f"CSV missing required columns: {df.columns.tolist()}")
+                return None
+
+            if 'Volume' not in df.columns:
+                df['Volume'] = 0
+
+            logger.info(f"✅ Local CSV: {len(df)} records for {symbol}")
+            return df[['Open', 'High', 'Low', 'Close', 'Volume']]
+
+        except Exception as e:
+            logger.error(f"Local CSV fetch error for {symbol}: {str(e)}")
+            return None
+
     def fetch_with_fallback(self, symbol: str) -> tuple:
         """
-        Fetch data using Alpha Vantage for everything (except crypto)
+        Fetch data with automatic fallback - CSV first, then APIs
         Returns (DataFrame, source_name)
         """
+        # Strategy 0: Try local CSV first (most reliable for available assets)
+        df = self.fetch_local_csv(symbol)
+        if df is not None and not df.empty:
+            return df, "Local CSV Data"
+
         # Strategy 1: For crypto, use CoinCap (completely free, no API key)
         if '-USD' in symbol:
             logger.info(f"Crypto detected: {symbol}")

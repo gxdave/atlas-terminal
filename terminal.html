@@ -1526,10 +1526,9 @@
                                 <select id="seasonalityCategory" onchange="updateSeasonalityAssets()">
                                     <option value="">Select Category...</option>
                                     <option value="forex">Forex</option>
-                                    <option value="crypto">Crypto (Recommended)</option>
-                                    <option value="stocks">Stocks (Recommended)</option>
-                                    <option value="indices">Index ETFs</option>
+                                    <option value="indices">Indices</option>
                                     <option value="commodities">Commodities</option>
+                                    <option value="crypto">Crypto</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -4075,37 +4074,23 @@
 
         // ===== SEASONALITY FUNCTIONS =====
 
-        // Asset mapping for seasonality (same as Probability Analyzer)
+        // Asset mapping for seasonality (only assets with CSV data available)
         const seasonalityAssets = {
             forex: [
                 { name: "EUR/USD", symbol: "EURUSD" },
                 { name: "GBP/USD", symbol: "GBPUSD" },
                 { name: "USD/JPY", symbol: "USDJPY" },
-                { name: "AUD/USD", symbol: "AUDUSD" },
-                { name: "USD/CHF", symbol: "USDCHF" }
+                { name: "USD/CHF", symbol: "USDCHF" },
+                { name: "USD/CAD", symbol: "USDCAD" }
             ],
             indices: [
-                { name: "S&P 500", symbol: "SPX" },
-                { name: "Nasdaq 100", symbol: "NDX" },
-                { name: "Dow Jones", symbol: "DJI" },
-                { name: "DAX", symbol: "DAX" }
+                { name: "S&P 500", symbol: "US500" }
             ],
             commodities: [
-                { name: "Gold", symbol: "XAUUSD" },
-                { name: "Silver", symbol: "XAGUSD" },
-                { name: "Crude Oil", symbol: "CL" }
+                { name: "Gold", symbol: "XAUUSD" }
             ],
             crypto: [
-                { name: "Bitcoin", symbol: "BTCUSD" },
-                { name: "Ethereum", symbol: "ETHUSD" }
-            ],
-            stocks: [
-                { name: "Apple", symbol: "AAPL" },
-                { name: "Microsoft", symbol: "MSFT" },
-                { name: "Tesla", symbol: "TSLA" },
-                { name: "Amazon", symbol: "AMZN" },
-                { name: "Google", symbol: "GOOGL" },
-                { name: "NVIDIA", symbol: "NVDA" }
+                { name: "Bitcoin", symbol: "BTCUSD" }
             ]
         };
         let monthlyChart = null;
