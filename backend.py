@@ -2931,14 +2931,17 @@ async def get_intraday_screener(current_user: User = Depends(get_current_active_
                     'apiKey': polygon_api_key
                 }
 
-                logger.info(f"Fetching {symbol_key} from Polygon.io: {polygon_symbol}")
+                logger.info(f"Fetching {symbol_key} from Polygon.io: {polygon_symbol}, URL: {url}")
                 response = requests.get(url, params=params, timeout=30)
 
                 if response.status_code != 200:
-                    logger.warning(f"Polygon.io returned {response.status_code} for {symbol_key}")
+                    logger.warning(f"Polygon.io returned {response.status_code} for {symbol_key}: {response.text[:200]}")
                     continue
 
                 data = response.json()
+
+                # Log ticker info
+                logger.info(f"{symbol_key} response: ticker={data.get('ticker')}, status={data.get('status')}, resultsCount={data.get('resultsCount')}")
 
                 if data.get('resultsCount', 0) == 0 or 'results' not in data:
                     logger.warning(f"No data from Polygon.io for {symbol_key}")
