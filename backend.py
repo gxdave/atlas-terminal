@@ -2881,6 +2881,103 @@ async def analyze_hosted_dataset(request: Dict[str, Any]):
         logger.error(f"Error analyzing hosted dataset: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to analyze dataset: {str(e)}")
 
+# ============================================
+# INTRADAY SCREENER API - Polygon.io
+# ============================================
+
+@app.get("/api/intraday/screener")
+async def get_intraday_screener(current_user: User = Depends(get_current_active_user)):
+    """
+    Get intraday M1 data for US500, VIX, EURUSD, XAUUSD from Polygon.io
+    Returns last 24 hours of minute data
+    """
+    try:
+        import requests
+
+        # Polygon.io API key from environment
+        polygon_api_key = os.environ.get("POLYGON_API_KEY", "")
+
+        if not polygon_api_key:
+            raise HTTPException(status_code=500, detail="Polygon.io API key not configured")
+
+        # Symbol mapping for Polygon.io
+        symbols = {
+            'US500': 'I:SPX',        # S&P 500 Index
+            'VIX': 'I:VIX',          # VIX Index
+            'EURUSD': 'C:EURUSD',    # Forex pair
+            'XAUUSD': 'C:XAUUSD'     # Gold
+        }
+
+        # Time range: last 24 hours
+        end_date = datetime.now()
+        start_date = end_date - timedelta(hours=24)
+
+        # Format dates for Polygon API
+        start_str = start_date.strftime('%Y-%m-%d')
+        end_str = end_date.strftime('%Y-%m-%d')
+
+        results = {}
+
+        for symbol_key, polygon_symbol in symbols.items():
+            try:
+                # Polygon.io aggregates endpoint for minute bars
+                url = f"https://api.polygon.io/v2/aggs/ticker/{polygon_symbol}/range/1/minute/{start_str}/{end_str}"
+                params = {
+                    'adjusted': 'true',
+                    'sort': 'asc',
+                    'limit': 50000,
+                    'apiKey': polygon_api_key
+                }
+
+                logger.info(f"Fetching {symbol_key} from Polygon.io: {polygon_symbol}")
+                response = requests.get(url, params=params, timeout=30)
+
+                if response.status_code != 200:
+                    logger.warning(f"Polygon.io returned {response.status_code} for {symbol_key}")
+                    continue
+
+                data = response.json()
+
+                if data.get('resultsCount', 0) == 0 or 'results' not in data:
+                    logger.warning(f"No data from Polygon.io for {symbol_key}")
+                    continue
+
+                # Extract OHLC data
+                bars = data['results']
+                timestamps = [bar['t'] for bar in bars]  # Unix timestamp in ms
+                opens = [bar['o'] for bar in bars]
+                highs = [bar['h'] for bar in bars]
+                lows = [bar['l'] for bar in bars]
+                closes = [bar['c'] for bar in bars]
+                volumes = [bar.get('v', 0) for bar in bars]
+
+                results[symbol_key] = {
+                    'timestamps': timestamps,
+                    'opens': opens,
+                    'highs': highs,
+                    'lows': lows,
+                    'closes': closes,
+                    'volumes': volumes,
+                    'count': len(bars)
+                }
+
+                logger.info(f"✅ {symbol_key}: {len(bars)} bars loaded")
+
+            except Exception as e:
+                logger.error(f"Error fetching {symbol_key}: {str(e)}")
+                continue
+
+        if not results:
+            raise HTTPException(status_code=503, detail="Failed to fetch data from Polygon.io for all symbols")
+
+        return results
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in intraday screener: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Intraday screener error: {str(e)}")
+
 @app.get("/api/yield-spread/analyze")
 async def analyze_yield_spreads(
     period: str = "1y",

@@ -1008,6 +1008,9 @@
             <div class="nav-item" onclick="switchView('economic')">
                 <span>Economic Data</span>
             </div>
+            <div class="nav-item" onclick="switchView('intradayscreener')">
+                <span>Intraday Screener</span>
+            </div>
         </div>
 
         <div class="sidebar-footer">
@@ -1757,6 +1760,81 @@
                     </div>
                     <div class="terminal-card-body">
                         <div id="ysStatistics"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Intraday Screener View -->
+            <div class="view" id="intradayscreener">
+                <div class="terminal-card" style="height: calc(100vh - 120px);">
+                    <div class="terminal-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h2>INTRADAY SCREENER</h2>
+                        <div style="display: flex; gap: 15px; align-items: center;">
+                            <span id="intradayLastUpdate" style="color: #888; font-size: 0.85rem;">Last Update: --</span>
+                            <button class="btn btn-small" onclick="loadIntradayData()" style="padding: 8px 16px;">
+                                REFRESH
+                            </button>
+                        </div>
+                    </div>
+                    <div class="terminal-card-body" style="height: calc(100% - 60px); padding: 15px;">
+                        <div id="intradayLoading" class="loading" style="display: none;">
+                            <div class="spinner"></div>
+                            <p style="color: #888;">Loading intraday data...</p>
+                        </div>
+                        <div id="intradayGrid" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 15px; height: 100%;">
+                            <!-- US500 Chart -->
+                            <div class="intraday-chart-container" style="background: #0a0a0a; border: 1px solid #333; border-radius: 5px; padding: 15px; display: flex; flex-direction: column;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <h3 style="color: #f7931a; margin: 0; font-size: 1rem;">S&P 500</h3>
+                                    <div>
+                                        <span id="us500Price" style="color: #fff; font-weight: bold;">--</span>
+                                        <span id="us500Change" style="margin-left: 10px; font-size: 0.9rem;">--</span>
+                                    </div>
+                                </div>
+                                <div style="flex: 1; position: relative;">
+                                    <canvas id="intradayChartUS500"></canvas>
+                                </div>
+                            </div>
+                            <!-- VIX Chart -->
+                            <div class="intraday-chart-container" style="background: #0a0a0a; border: 1px solid #333; border-radius: 5px; padding: 15px; display: flex; flex-direction: column;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <h3 style="color: #ff4444; margin: 0; font-size: 1rem;">VIX</h3>
+                                    <div>
+                                        <span id="vixPrice" style="color: #fff; font-weight: bold;">--</span>
+                                        <span id="vixChange" style="margin-left: 10px; font-size: 0.9rem;">--</span>
+                                    </div>
+                                </div>
+                                <div style="flex: 1; position: relative;">
+                                    <canvas id="intradayChartVIX"></canvas>
+                                </div>
+                            </div>
+                            <!-- EURUSD Chart -->
+                            <div class="intraday-chart-container" style="background: #0a0a0a; border: 1px solid #333; border-radius: 5px; padding: 15px; display: flex; flex-direction: column;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <h3 style="color: #00aaff; margin: 0; font-size: 1rem;">EUR/USD</h3>
+                                    <div>
+                                        <span id="eurusdPrice" style="color: #fff; font-weight: bold;">--</span>
+                                        <span id="eurusdChange" style="margin-left: 10px; font-size: 0.9rem;">--</span>
+                                    </div>
+                                </div>
+                                <div style="flex: 1; position: relative;">
+                                    <canvas id="intradayChartEURUSD"></canvas>
+                                </div>
+                            </div>
+                            <!-- XAUUSD Chart -->
+                            <div class="intraday-chart-container" style="background: #0a0a0a; border: 1px solid #333; border-radius: 5px; padding: 15px; display: flex; flex-direction: column;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <h3 style="color: #ffd700; margin: 0; font-size: 1rem;">Gold (XAU/USD)</h3>
+                                    <div>
+                                        <span id="xauusdPrice" style="color: #fff; font-weight: bold;">--</span>
+                                        <span id="xauusdChange" style="margin-left: 10px; font-size: 0.9rem;">--</span>
+                                    </div>
+                                </div>
+                                <div style="flex: 1; position: relative;">
+                                    <canvas id="intradayChartXAUUSD"></canvas>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -4087,6 +4165,150 @@
                 document.getElementById('weekly-label').textContent = 'Error loading data';
                 document.getElementById('monthly-label').textContent = 'Error loading data';
             }
+        }
+
+        // ===== INTRADAY SCREENER FUNCTIONS =====
+
+        const intradayCharts = {
+            US500: null,
+            VIX: null,
+            EURUSD: null,
+            XAUUSD: null
+        };
+
+        const intradayConfig = {
+            US500: { color: '#f7931a', name: 'S&P 500', priceId: 'us500Price', changeId: 'us500Change', decimals: 2 },
+            VIX: { color: '#ff4444', name: 'VIX', priceId: 'vixPrice', changeId: 'vixChange', decimals: 2 },
+            EURUSD: { color: '#00aaff', name: 'EUR/USD', priceId: 'eurusdPrice', changeId: 'eurusdChange', decimals: 5 },
+            XAUUSD: { color: '#ffd700', name: 'Gold', priceId: 'xauusdPrice', changeId: 'xauusdChange', decimals: 2 }
+        };
+
+        async function loadIntradayData() {
+            document.getElementById('intradayLoading').style.display = 'block';
+            document.getElementById('intradayGrid').style.opacity = '0.3';
+
+            try {
+                const token = localStorage.getItem('atlasToken');
+                const response = await fetch(`${API_URL}/api/intraday/screener`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) throw new Error('Failed to fetch intraday data');
+
+                const data = await response.json();
+
+                // Render each chart
+                for (const [symbol, config] of Object.entries(intradayConfig)) {
+                    if (data[symbol]) {
+                        renderIntradayChart(symbol, data[symbol], config);
+                    }
+                }
+
+                // Update timestamp
+                document.getElementById('intradayLastUpdate').textContent =
+                    `Last Update: ${new Date().toLocaleTimeString()}`;
+
+            } catch (error) {
+                console.error('Error loading intraday data:', error);
+                alert('Error loading intraday data: ' + error.message);
+            } finally {
+                document.getElementById('intradayLoading').style.display = 'none';
+                document.getElementById('intradayGrid').style.opacity = '1';
+            }
+        }
+
+        function renderIntradayChart(symbol, data, config) {
+            const canvas = document.getElementById(`intradayChart${symbol}`);
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+
+            // Destroy existing chart
+            if (intradayCharts[symbol]) {
+                intradayCharts[symbol].destroy();
+            }
+
+            // Prepare data
+            const labels = data.timestamps.map(t => {
+                const date = new Date(t);
+                return date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+            });
+            const prices = data.closes;
+
+            // Calculate change
+            const firstPrice = prices[0];
+            const lastPrice = prices[prices.length - 1];
+            const change = ((lastPrice - firstPrice) / firstPrice) * 100;
+            const changeColor = change >= 0 ? '#00ff88' : '#ff4444';
+
+            // Update price display
+            document.getElementById(config.priceId).textContent = lastPrice.toFixed(config.decimals);
+            const changeEl = document.getElementById(config.changeId);
+            changeEl.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
+            changeEl.style.color = changeColor;
+
+            // Create chart
+            intradayCharts[symbol] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: prices,
+                        borderColor: config.color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.1,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#1a1a1a',
+                            titleColor: '#f7931a',
+                            bodyColor: '#fff',
+                            borderColor: config.color,
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    return `${config.name}: ${context.parsed.y.toFixed(config.decimals)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            grid: { color: '#222', drawBorder: false },
+                            ticks: {
+                                color: '#666',
+                                maxTicksLimit: 6,
+                                font: { size: 10 }
+                            }
+                        },
+                        y: {
+                            display: true,
+                            position: 'right',
+                            grid: { color: '#222', drawBorder: false },
+                            ticks: {
+                                color: '#888',
+                                font: { size: 10 },
+                                callback: function(value) {
+                                    return value.toFixed(config.decimals > 2 ? 4 : 0);
+                                }
+                            }
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            });
         }
 
         // ===== SEASONALITY FUNCTIONS =====
