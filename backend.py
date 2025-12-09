@@ -2946,12 +2946,20 @@ async def get_intraday_screener(current_user: User = Depends(get_current_active_
 
                 # Extract OHLC data
                 bars = data['results']
-                timestamps = [bar['t'] for bar in bars]  # Unix timestamp in ms
-                opens = [bar['o'] for bar in bars]
-                highs = [bar['h'] for bar in bars]
-                lows = [bar['l'] for bar in bars]
-                closes = [bar['c'] for bar in bars]
+
+                # Polygon timestamps are in milliseconds UTC
+                timestamps = [bar['t'] for bar in bars]
+                opens = [float(bar['o']) for bar in bars]
+                highs = [float(bar['h']) for bar in bars]
+                lows = [float(bar['l']) for bar in bars]
+                closes = [float(bar['c']) for bar in bars]
                 volumes = [bar.get('v', 0) for bar in bars]
+
+                # Log first and last data points for debugging
+                if timestamps:
+                    first_time = datetime.fromtimestamp(timestamps[0] / 1000)
+                    last_time = datetime.fromtimestamp(timestamps[-1] / 1000)
+                    logger.info(f"{symbol_key}: First={first_time}, Last={last_time}, First Close={closes[0]}, Last Close={closes[-1]}")
 
                 results[symbol_key] = {
                     'timestamps': timestamps,
