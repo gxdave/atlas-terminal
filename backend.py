@@ -2909,13 +2909,18 @@ async def get_intraday_screener(current_user: User = Depends(get_current_active_
             'XAUUSD': 'C:XAUUSD'     # Gold spot
         }
 
-        # Time range: last 24 hours
-        end_date = datetime.now()
-        start_date = end_date - timedelta(hours=24)
+        # Time range: today and yesterday (to ensure we get latest data)
+        # Use UTC+1 for European timezone
+        from datetime import timezone
+        now_utc = datetime.now(timezone.utc)
+        end_date = now_utc + timedelta(days=1)  # Tomorrow to ensure we get all of today
+        start_date = now_utc - timedelta(days=1)  # Yesterday
 
         # Format dates for Polygon API
         start_str = start_date.strftime('%Y-%m-%d')
         end_str = end_date.strftime('%Y-%m-%d')
+
+        logger.info(f"Fetching intraday data from {start_str} to {end_str} (UTC now: {now_utc.strftime('%Y-%m-%d %H:%M')})")
 
         results = {}
 
@@ -2949,6 +2954,14 @@ async def get_intraday_screener(current_user: User = Depends(get_current_active_
                 # Extract OHLC data
                 bars = data['results']
 
+                # Filter to last 24 hours only
+                cutoff_time = int((now_utc - timedelta(hours=24)).timestamp() * 1000)
+                bars = [bar for bar in bars if bar['t'] >= cutoff_time]
+
+                if not bars:
+                    logger.warning(f"No bars in last 24h for {symbol_key}")
+                    continue
+
                 # Polygon timestamps are in milliseconds UTC
                 timestamps = [bar['t'] for bar in bars]
                 opens = [float(bar['o']) for bar in bars]
@@ -2959,9 +2972,9 @@ async def get_intraday_screener(current_user: User = Depends(get_current_active_
 
                 # Log first and last data points for debugging
                 if timestamps:
-                    first_time = datetime.fromtimestamp(timestamps[0] / 1000)
-                    last_time = datetime.fromtimestamp(timestamps[-1] / 1000)
-                    logger.info(f"{symbol_key}: First={first_time}, Last={last_time}, First Close={closes[0]}, Last Close={closes[-1]}")
+                    first_time = datetime.fromtimestamp(timestamps[0] / 1000, tz=timezone.utc)
+                    last_time = datetime.fromtimestamp(timestamps[-1] / 1000, tz=timezone.utc)
+                    logger.info(f"{symbol_key}: First={first_time.strftime('%Y-%m-%d %H:%M')}, Last={last_time.strftime('%Y-%m-%d %H:%M')}, Bars={len(bars)}")
 
                 results[symbol_key] = {
                     'timestamps': timestamps,
