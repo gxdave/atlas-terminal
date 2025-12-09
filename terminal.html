@@ -4204,9 +4204,19 @@
                     }
                 }
 
-                // Update timestamp
+                // Update timestamp - show data delay info
+                // Find the most recent data point across all symbols
+                let latestTimestamp = 0;
+                for (const [sym, symData] of Object.entries(data)) {
+                    if (symData.timestamps && symData.timestamps.length > 0) {
+                        const lastTs = symData.timestamps[symData.timestamps.length - 1];
+                        if (lastTs > latestTimestamp) latestTimestamp = lastTs;
+                    }
+                }
+                const latestDataTime = new Date(latestTimestamp);
+                const delayMinutes = Math.round((Date.now() - latestTimestamp) / 60000);
                 document.getElementById('intradayLastUpdate').textContent =
-                    `Last Update: ${new Date().toLocaleTimeString()}`;
+                    `Data: ${latestDataTime.toLocaleTimeString('de-CH', { timeZone: 'Europe/Zurich' })} (${delayMinutes}min delayed)`;
 
             } catch (error) {
                 console.error('Error loading intraday data:', error);
@@ -4228,18 +4238,26 @@
                 intradayCharts[symbol].destroy();
             }
 
-            // Prepare data
+            // Prepare data - timestamps are in milliseconds UTC
             const labels = data.timestamps.map(t => {
                 const date = new Date(t);
-                return date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                return date.toLocaleTimeString('de-CH', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    timeZone: 'Europe/Zurich'
+                });
             });
             const prices = data.closes;
 
-            // Calculate change
+            // Calculate change from first to last bar
             const firstPrice = prices[0];
             const lastPrice = prices[prices.length - 1];
             const change = ((lastPrice - firstPrice) / firstPrice) * 100;
             const changeColor = change >= 0 ? '#00ff88' : '#ff4444';
+
+            // Get last data timestamp for display
+            const lastDataTime = new Date(data.timestamps[data.timestamps.length - 1]);
+            const dataAge = Math.round((Date.now() - lastDataTime.getTime()) / 60000); // minutes
 
             // Update price display
             document.getElementById(config.priceId).textContent = lastPrice.toFixed(config.decimals);
