@@ -2902,12 +2902,11 @@ async def get_intraday_screener(current_user: User = Depends(get_current_active_
 
         # Symbol mapping for Polygon.io
         # Note: Index data (I:) requires higher tier subscription
-        # Using ETFs as alternatives for basic plans
         symbols = {
-            'US500': 'SPY',          # S&P 500 ETF (alternative to I:SPX)
-            'VIX': 'VIXY',           # VIX ETF (alternative to I:VIX)
+            'US500': 'SPY',          # S&P 500 ETF
+            'VIX': 'VIXY',           # VIX ETF
             'EURUSD': 'C:EURUSD',    # Forex pair
-            'XAUUSD': 'C:XAUUSD'     # Gold
+            'XAUUSD': 'C:XAUUSD'     # Gold spot
         }
 
         # Time range: last 24 hours
